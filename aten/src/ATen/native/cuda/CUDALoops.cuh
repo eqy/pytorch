@@ -89,6 +89,15 @@ __global__ void unrolled_elementwise_kernel(int N, func_t f, array_t data,
   elementwise_kernel_helper(f, policy);
 }
 
+template<typename func_t, typename array_t>
+bool driver_launch(int64_t N, const func_t& f, array_t data) {
+  if (std::is_same<func_t, at::native::MulFunctor<float>>::value && \
+  std::is_same<array_t, at::detail::Array<char *, 3>>::value) {
+    return true;
+  }
+  return false;
+}
+
 // this function assume trivial 1d and no dynamic casting
 template<typename func_t, typename array_t>
 static inline void launch_vectorized_kernel(int64_t N, const func_t& f, array_t data) {
