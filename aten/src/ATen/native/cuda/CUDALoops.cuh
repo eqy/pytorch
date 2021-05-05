@@ -32,6 +32,7 @@
 #include <tuple>
 
 #include <ATen/ATen.h>
+#include <ATen/cuda/nvrtc_stub/ATenNVRTC.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/core/Array.h>
 #include <ATen/detail/FunctionTraits.h>
@@ -58,6 +59,8 @@
 
 
 namespace at { namespace native {
+
+template<typename scalar_t> struct MulFunctor; 
 
 template<int vec_size, typename func_t, typename array_t>
 C10_LAUNCH_BOUNDS_1(num_threads)
@@ -93,6 +96,8 @@ template<typename func_t, typename array_t>
 bool driver_launch(int64_t N, const func_t& f, array_t data) {
   if (std::is_same<func_t, at::native::MulFunctor<float>>::value && \
   std::is_same<array_t, at::detail::Array<char *, 3>>::value) {
+    CUmodule module;
+    CUfunction function;
     return true;
   }
   return false;
