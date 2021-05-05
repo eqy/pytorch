@@ -43,6 +43,7 @@ namespace at { namespace cuda {
   _(nvrtcGetProgramLogSize)                      \
   _(nvrtcGetProgramLog)                          \
   _(nvrtcGetLoweredName)                         \
+  _(cuModuleLoad)                                \
   _(cuModuleLoadData)                            \
   _(cuModuleLoadDataEx)                          \
   _(cuModuleGetFunction)                         \
@@ -96,6 +97,7 @@ namespace at { namespace cuda {
   _(nvrtcDestroyProgram)                          \
   _(nvrtcGetPTXSize)                              \
   _(nvrtcGetPTX)                                  \
+   _(cuModuleLoad)                                \
   _(cuModuleLoadData)                             \
   _(cuModuleGetFunction)                          \
   _(HIPOCCUPANCYMAXACTIVEBLOCKSPERMULTIPROCESSOR) \
