@@ -93,11 +93,19 @@ __global__ void unrolled_elementwise_kernel(int N, func_t f, array_t data,
 }
 
 template<typename func_t, typename array_t>
-bool driver_launch(int64_t N, const func_t& f, array_t data) {
+bool driver_launch(int64_t N, const func_t& f, array_t data, int64_t grid, int64_t num_threads) {
   if (std::is_same<func_t, at::native::MulFunctor<float>>::value && \
   std::is_same<array_t, at::detail::Array<char *, 3>>::value) {
     CUmodule module;
     CUfunction function;
+    CUresult status;
+    status = globalContext().getNVRTC().cuModuleLoad(&module, "test_cubins/libtorch_cuda.59.sm_86.cubin");
+    if (status == CUDA_SUCCESS)
+      status = globalContext().getNVRTC().cuModuleGetFunction(&function, module, "_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_10MulFunctorIfEENS_6detail5ArrayIPcLi3EEEEEviT0_T1_");
+      TORCH_WARN(status);
+    if (status == CUDA_SUCCESS)
+      status = globalContext().getNVRTC().cuLaunchKernel(function, grid, 1, 1, num_threads, 1, 1, 0, 0, args, NULL);
+    TORCH_WARN(status);
     return true;
   }
   return false;
