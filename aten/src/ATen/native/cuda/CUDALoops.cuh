@@ -99,6 +99,7 @@ bool driver_launch(int64_t N, const func_t& f, array_t data, int64_t grid, int64
     CUmodule module;
     CUfunction function;
     CUresult status;
+    void *args[] = {&N, &data};
     status = globalContext().getNVRTC().cuModuleLoad(&module, "test_cubins/libtorch_cuda.59.sm_86.cubin");
     if (status == CUDA_SUCCESS)
       status = globalContext().getNVRTC().cuModuleGetFunction(&function, module, "_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_10MulFunctorIfEENS_6detail5ArrayIPcLi3EEEEEviT0_T1_");
