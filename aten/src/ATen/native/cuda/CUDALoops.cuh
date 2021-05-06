@@ -60,7 +60,14 @@
 
 namespace at { namespace native {
 
-template<typename scalar_t> struct MulFunctor; 
+// These are here for prototyping; see comment in driver_launch()
+template<typename scalar_t> struct MulFunctor;
+template<typename scalar_t>
+struct MulFunctor2 {
+  __device__ scalar_t operator() (scalar_t a, scalar_t b) const {
+    return a * b;
+  }
+};
 
 template<int vec_size, typename func_t, typename array_t>
 C10_LAUNCH_BOUNDS_1(num_threads)
@@ -99,7 +106,11 @@ bool driver_launch(int64_t N, const func_t& f, array_t data, int64_t grid, int64
     CUmodule module;
     CUfunction function;
     CUresult status;
-    void *args[] = {&N, &data};
+    // CANNOT USE f directly even though we know the type!!!
+    // This can be removed if MulFunctor is refactored into a header included
+    // by both BinaryMulDivKernel.cu and this file
+    at::native::MulFunctor2<float> f_;
+    void *args[] = {&N, &f_, &data};
     status = globalContext().getNVRTC().cuModuleLoad(&module, "test_cubins2/libtorch_cuda.59.sm_86.cubin");
     if (status == CUDA_SUCCESS)
       status = globalContext().getNVRTC().cuModuleGetFunction(&function, module, "_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_10MulFunctorIfEENS_6detail5ArrayIPcLi3EEEEEviT0_T1_");
