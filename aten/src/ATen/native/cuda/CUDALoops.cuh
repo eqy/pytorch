@@ -100,10 +100,10 @@ bool driver_launch(int64_t N, const func_t& f, array_t data, int64_t grid, int64
     CUfunction function;
     CUresult status;
     void *args[] = {&N, &data};
-    status = globalContext().getNVRTC().cuModuleLoad(&module, "test_cubins/libtorch_cuda.59.sm_86.cubin");
+    status = globalContext().getNVRTC().cuModuleLoad(&module, "test_cubins2/libtorch_cuda.59.sm_86.cubin");
     if (status == CUDA_SUCCESS)
       status = globalContext().getNVRTC().cuModuleGetFunction(&function, module, "_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_10MulFunctorIfEENS_6detail5ArrayIPcLi3EEEEEviT0_T1_");
-      TORCH_WARN(status);
+    TORCH_WARN(status);
     if (status == CUDA_SUCCESS)
       status = globalContext().getNVRTC().cuLaunchKernel(function, grid, 1, 1, num_threads, 1, 1, 0, 0, args, NULL);
     TORCH_WARN(status);
@@ -123,8 +123,10 @@ static inline void launch_vectorized_kernel(int64_t N, const func_t& f, array_t 
 
   switch (vec_size) {
   case 4:
-    vectorized_elementwise_kernel<4, func_t, array_t><<<grid, num_threads, 0, stream>>>(N, f, data);
-    C10_CUDA_KERNEL_LAUNCH_CHECK();
+    if (!driver_launch(N, f, data, grid, num_threads)) {
+      vectorized_elementwise_kernel<4, func_t, array_t><<<grid, num_threads, 0, stream>>>(N, f, data);
+      C10_CUDA_KERNEL_LAUNCH_CHECK();
+    }
     break;
   case 2:
     vectorized_elementwise_kernel<2, func_t, array_t><<<grid, num_threads, 0, stream>>>(N, f, data);
