@@ -17,6 +17,8 @@
 #include <ATen/cudnn/Handle.h>
 #include <ATen/TensorUtils.h>
 
+#include <mutex>
+#include <unordered_set>
 #include <unordered_map>
 
 namespace at { namespace native{
@@ -83,8 +85,35 @@ struct CacheKey {
   uint8_t y_alignment;
 };
 
+std::unordered_set<CacheKey, ParamsHash<CacheKey>, ParamsEqual<CacheKey>> debug_set;
+
+// TODO: Use something less heavy duty than a big honking mutex
+struct BenchmarkCache {
+  std::mutex mutex;
+  //std::unordered_map<ConvolutionParams, T, ParamsHash<ConvolutionParams>, ParamsEqual<ConvolutionParams>> map;
+  std::unordered_map<CacheKey, cudnn_frontend::ExecutionPlan, ParamsHash<CacheKey>, ParamsEqual<CacheKey>> engine_cache;
+
+
+  bool find(const CacheKey& params, std::unordered_map<CacheKey, cudnn_frontend::ExecutionPlan, ParamsHash<CacheKey>, ParamsEqual<CacheKey>>::iterator &it) {
+    std::lock_guard<std::mutex> guard(mutex);
+    it = engine_cache.find(params);
+    if (it == engine_cache.end()) {
+      return false;
+    }
+    return true;
+  }
+
+  void emplace(const CacheKey& params, cudnn_frontend::ExecutionPlan & plan) {
+    std::lock_guard<std::mutex> guard(mutex);
+    engine_cache.emplace(params, std::move(plan));
+    //TORCH_CHECK(engine_cache.find(params) != engine_cache.end(), "this never fires222");
+  }
+};
+
+
 // FIXME: make this thread-safe by reusing the benchmark cache in Conv_v7.cpp
 std::unordered_map<CacheKey, cudnn_frontend::ExecutionPlan, ParamsHash<CacheKey>, ParamsEqual<CacheKey>> engine_cache;
+struct BenchmarkCache benchmark_cache;
 
 }
 
@@ -148,7 +177,8 @@ void try_filtered_configs(const cudnn_frontend::EngineConfigList filtered_config
           .build();
       run_conv_plan(handle, x, y, w, plan);
       engine_cache.emplace(key, std::move(plan));
-      //TORCH_CHECK(engine_cache.count(key), "this never fires");
+      //benchmark_cache.emplace(key, plan);
+      //TORCH_CHECK(engine_cache.find(key) != engine_cache.end(), "asdf....");    
       return;
     } catch (cudnn_frontend::cudnnException &e) {} catch(CuDNNError &e) {}
   }
@@ -166,10 +196,54 @@ void run_single_conv(const cudnnBackendDescriptorType_t operation,
   CacheKey key;
   get_cachekey(key, operation, y, x, w, padding, stride, dilation, groups, deterministic, allow_tf32);
   auto search = engine_cache.find(key);
+  if (engine_cache.size() > 100) {
+    std::cout << "begin dump" << std::endl;
+    for (auto it = engine_cache.begin(); it != engine_cache.end(); it++) {
+      std::cout << "dump" << std::endl;
+      CacheKey currkey = it->first;
+      debug_set.insert(currkey);
+      std::cout << engine_cache.size() << std::endl;
+      std::cout << currkey.params << std::endl;
+      std::cout << "device: " << (int) currkey.params.device_id << std::endl;
+      std::cout << "input dim: " << (int) currkey.params.input_dim << std::endl;
+      std::cout << "memory format: " << (int) currkey.params.memory_format << std::endl;
+      for (int i = 0; i < 5; i++ ) {
+      std::cout << currkey.params.input_size[i] << " ";
+      }
+      std::cout << std::endl;
+      for (int i = 0; i < 5; i++) {
+      std::cout << currkey.params.weight_size[i] << " ";
+      }
+      std::cout << std::endl;
+      std::cout << (int) currkey.operation << "??" << (int) currkey.x_alignment << " " << (int) currkey.y_alignment <<  " " << (int) currkey.w_alignment << std::endl;
+    
+    }
+    std::cout << "final debug set size: " << debug_set.size() << " final cache size: " << engine_cache.size() << std::endl;
+    TORCH_CHECK(false, "corrupt engine cache, terminating with dump");
+  }
+  std::cout << engine_cache.size() << std::endl;
+  std::cout << key.params << std::endl;
+  std::cout << "device: " << (int) key.params.device_id << std::endl;
+  std::cout << "input dim: " << (int) key.params.input_dim << std::endl;
+  std::cout << "memory format: " << (int) key.params.memory_format << std::endl;
+  for (int i = 0; i < 5; i++ ) {
+  std::cout << key.params.input_size[i] << " ";
+  }
+  std::cout << std::endl;
+  for (int i = 0; i < 5; i++) {
+  std::cout << key.params.weight_size[i] << " ";
+  }
+  std::cout << std::endl;
+  std::cout << key.operation << "??" << (int) key.x_alignment << " " << (int) key.y_alignment <<  " " << (int) key.w_alignment << std::endl;
   if (search != engine_cache.end()) {
+    std::cout << "okKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK" << std::endl;
+  //std::unordered_map<CacheKey, cudnn_frontend::ExecutionPlan, ParamsHash<CacheKey>, ParamsEqual<CacheKey>>::iterator search;
+  //if(benchmark_cache.find(key, search)) {
     run_conv_plan(handle, x, y, w, search->second);
     return;
   }
+  std::cout << "NOOOOOOOOOOO" << std::endl;
+  //std::cout << benchmark_cache.engine_cache.size
 
   cudnn_frontend::EngineConfigList filtered_configs;
   get_configs_from_heuristics(filtered_configs, handle, operation, x, y, w, key, padding, stride, dilation, deterministic, allow_tf32);
