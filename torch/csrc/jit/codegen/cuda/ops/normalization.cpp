@@ -221,6 +221,85 @@ ForwardNormResult layer_norm(
   return {y, mean_bcast, invstd};
 }
 
+ForwardNormResult rms_norm(
+    TensorView* x,
+    const std::vector<int64_t>& norm_shape,
+    TensorView* weight,
+    /* TensorView* bias, */
+    Val* eps) {
+  return rms_norm(x, norm_shape.size(), weight, /* bias, */ eps);
+}
+
+ForwardNormResult rms_norm(
+    TensorView* x,
+    const size_t kNormShapeNumDims,
+    TensorView* weight,
+    /* TensorView* bias, */
+    Val* eps) {
+  TORCH_INTERNAL_ASSERT(x != nullptr, "Input is invalid.");
+  TORCH_INTERNAL_ASSERT(
+      eps != nullptr && eps->getDataType().has_value() &&
+          eps->getDataType().value() == DataType::Double,
+      "Epsilon (eps) is not a valid Double.");
+
+  // (B, C, H, W, D) tensor
+  // norm_shape = [H, W, D]
+  // M = outer = product of remaining dimensions = B * C
+  // N = reduction = product of norm_shape = H * W * D
+  // weight = bias = norm_shape tensor
+  const size_t kNumberOfDims =
+      TensorDomain::noReductions(x->getMaybeRFactorDomain()).size();
+  const size_t kOuterNumDims = kNumberOfDims - kNormShapeNumDims;
+
+  std::vector<int> outer_reduction_axes(kOuterNumDims);
+  std::vector<bool> outer_broadcast_mask(kNumberOfDims, false);
+  for (const auto idx : c10::irange(kOuterNumDims)) {
+    outer_reduction_axes[idx] = idx;
+    outer_broadcast_mask[idx] = true;
+  }
+
+  std::vector<int> inner_reduction_axes(kNormShapeNumDims);
+  std::vector<bool> inner_broadcast_mask(kNumberOfDims, false);
+  Val* num_features = IrBuilder::create<Double>(x->container(), 1);
+  for (const auto idx : c10::irange(kNormShapeNumDims)) {
+    const size_t axis = kNumberOfDims - 1 - idx;
+    inner_reduction_axes[idx] = axis;
+    inner_broadcast_mask[axis] = true;
+    num_features = mul(num_features, x->domain()->domain()[axis]->extent());
+  }
+
+  // Main algorithm
+  // auto welford_out = Welford(x, inner_reduction_axes);
+  // auto mean_bcast = broadcast(welford_out.avg, inner_broadcast_mask);
+  // auto x_sub_mean = sub(x, mean_bcast);
+
+  // auto var_sum_bcast = broadcast(welford_out.var_sum, inner_broadcast_mask);
+  // really (sum of sigma^2)
+  auto var_sum = sum(mul(x, x), inner_reduction_axes);
+  auto var_sum_bcast = broadcast(var_sum, inner_broadcast_mask);
+  auto var = mul(var_sum_bcast, reciprocal(num_features));
+  auto var_eps = add(var, eps);
+  auto invstd = rsqrt(var_eps);
+
+  // auto y = mul(x_sub_mean, invstd);
+  auto y = mul(x, invstd);
+
+  // Optional: norm * weight
+  if (weight != nullptr) {
+    auto weight_bcast = broadcast(weight, outer_broadcast_mask);
+    y = mul(y, weight_bcast);
+  }
+
+  // Optional: norm * weight + bias
+  // if (bias != nullptr) {
+  //  auto bias_bcast = broadcast(bias, outer_broadcast_mask);
+  //  y = add(y, bias_bcast);
+  // }
+
+  return {y, /* mean_bcast, */ invstd};
+}
+
+
 BackwardNormResult layer_norm_backward(
     TensorView* dy,
     TensorView* x,
@@ -301,6 +380,89 @@ BackwardNormResult layer_norm_backward(
   }
   return {dx, dw, db};
 }
+
+BackwardNormResult rms_norm_backward(
+    TensorView* dy,
+    TensorView* x,
+    const std::vector<int64_t>& norm_shape,
+    // TensorView* mean,
+    TensorView* invstd,
+    TensorView* weight,
+    // TensorView* bias,
+    const std::vector<bool>& output_mask) {
+  TORCH_INTERNAL_ASSERT(dy != nullptr, "Grad Output is invalid.");
+  TORCH_INTERNAL_ASSERT(x != nullptr, "Input is invalid.");
+  // TORCH_INTERNAL_ASSERT(mean != nullptr, "Mean is invalid.");
+  TORCH_INTERNAL_ASSERT(invstd != nullptr, "Inv std is invalid.");
+
+  // (B, C, H, W, D) tensor
+  // norm_shape = [H, W, D]
+  // M = outer = product of remaining dimensions = B * C
+  // N = reduction = product of norm_shape = H * W * D
+  // weight = bias = norm_shape tensor
+  const size_t kNumberOfDims =
+      TensorDomain::noReductions(x->getMaybeRFactorDomain()).size();
+  const size_t kNormShapeNumDims = norm_shape.size();
+  const size_t kOuterNumDims = kNumberOfDims - kNormShapeNumDims;
+
+  std::vector<int> outer_reduction_axes(kOuterNumDims);
+  std::vector<bool> outer_broadcast_mask(kNumberOfDims, false);
+  for (const auto idx : c10::irange(kOuterNumDims)) {
+    outer_reduction_axes[idx] = idx;
+    outer_broadcast_mask[idx] = true;
+  }
+
+  std::vector<int> inner_reduction_axes(kNormShapeNumDims);
+  std::vector<bool> inner_broadcast_mask(kNumberOfDims, false);
+  Val* num_features = IrBuilder::create<Double>(x->container(), 1);
+  for (const auto idx : c10::irange(kNormShapeNumDims)) {
+    const size_t axis = kNumberOfDims - 1 - idx;
+    inner_reduction_axes[idx] = axis;
+    inner_broadcast_mask[axis] = true;
+    num_features = mul(num_features, x->domain()->domain()[axis]->extent());
+  }
+
+  // auto x_hat = mul(sub(x, mean), invstd);
+  auto x_hat = mul(x, invstd);
+
+  TensorView* grad_x_hat = nullptr;
+  if (weight != nullptr) {
+    auto* bcast_weight = broadcast(weight, outer_broadcast_mask);
+    grad_x_hat = mul(dy, bcast_weight);
+  } else {
+    grad_x_hat = dy;
+  }
+
+  auto a = mul(num_features, grad_x_hat);
+
+  auto b = sum(grad_x_hat, inner_reduction_axes);
+  auto bcast_b = broadcast(b, inner_broadcast_mask);
+
+  auto c1 = mul(grad_x_hat, x_hat);
+  auto c2 = sum(c1, inner_reduction_axes);
+  auto bcast_c2 = broadcast(c2, inner_broadcast_mask);
+  auto c3 = mul(x_hat, bcast_c2);
+
+  auto inner = sub(sub(a, bcast_b), c3);
+  auto reciprocal_size = reciprocal(num_features);
+
+  TensorView* dx = nullptr;
+  if (output_mask[0]) {
+    dx = mul(mul(reciprocal_size, invstd), inner);
+  }
+
+  TensorView* dw = nullptr;
+  if (output_mask[1] && weight != nullptr) {
+    dw = sum(mul(dy, x_hat), outer_reduction_axes);
+  }
+
+  // TensorView* db = nullptr;
+  // if (output_mask[2] && bias != nullptr) {
+  //  db = sum(dy, outer_reduction_axes);
+  // }
+  return {dx, dw/*, db*/};
+}
+
 
 ForwardNormResult batch_norm(
     TensorView* x,

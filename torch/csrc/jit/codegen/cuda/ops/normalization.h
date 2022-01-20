@@ -73,6 +73,20 @@ TORCH_CUDA_CU_API ForwardNormResult layer_norm(
     TensorView* bias,
     Val* eps);
 
+TORCH_CUDA_CU_API ForwardNormResult rms_norm(
+    TensorView* x,
+    const std::vector<int64_t>& norm_shape,
+    TensorView* weight,
+    // TensorView* bias,
+    Val* eps);
+
+TORCH_CUDA_CU_API ForwardNormResult rms_norm(
+    TensorView* x,
+    const size_t kNormShapeNumDims,
+    TensorView* weight,
+    // TensorView* bias,
+    Val* eps);
+
 TORCH_CUDA_CU_API BackwardNormResult layer_norm_backward(
     TensorView* dy,
     TensorView* x,
@@ -82,6 +96,17 @@ TORCH_CUDA_CU_API BackwardNormResult layer_norm_backward(
     TensorView* weight,
     TensorView* bias,
     const std::vector<bool>& output_mask);
+
+TORCH_CUDA_CU_API BackwardNormResult rms_norm_backward(
+    TensorView* dy,
+    TensorView* x,
+    const std::vector<int64_t>& norm_shape,
+    // TensorView* mean,
+    TensorView* rstd,
+    TensorView* weight,
+    // TensorView* bias,
+    const std::vector<bool>& output_mask);
+
 
 TORCH_CUDA_CU_API ForwardNormResult batch_norm(
     TensorView* x,
