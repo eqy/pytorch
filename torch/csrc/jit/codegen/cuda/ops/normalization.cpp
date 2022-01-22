@@ -221,7 +221,7 @@ ForwardNormResult layer_norm(
   return {y, mean_bcast, invstd};
 }
 
-ForwardNormResult rms_norm(
+ForwardRMSNormResult rms_norm(
     TensorView* x,
     const std::vector<int64_t>& norm_shape,
     TensorView* weight,
@@ -230,7 +230,7 @@ ForwardNormResult rms_norm(
   return rms_norm(x, norm_shape.size(), weight, /* bias, */ eps);
 }
 
-ForwardNormResult rms_norm(
+ForwardRMSNormResult rms_norm(
     TensorView* x,
     const size_t kNormShapeNumDims,
     TensorView* weight,
@@ -381,7 +381,7 @@ BackwardNormResult layer_norm_backward(
   return {dx, dw, db};
 }
 
-BackwardNormResult rms_norm_backward(
+BackwardRMSNormResult rms_norm_backward(
     TensorView* dy,
     TensorView* x,
     const std::vector<int64_t>& norm_shape,

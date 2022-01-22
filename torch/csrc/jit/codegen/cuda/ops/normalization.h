@@ -28,6 +28,16 @@ struct BackwardNormResult {
   TensorView* grad_bias = nullptr;
 };
 
+struct ForwardRMSNormResult {
+  TensorView* output = nullptr;
+  TensorView* invstd = nullptr;
+};
+
+struct BackwardRMSNormResult {
+  TensorView* grad_input = nullptr;
+  TensorView* grad_weight = nullptr;
+};
+
 TORCH_CUDA_CU_API TensorView* mean(
     TensorView* x,
     const std::vector<int>& dims,
@@ -73,14 +83,14 @@ TORCH_CUDA_CU_API ForwardNormResult layer_norm(
     TensorView* bias,
     Val* eps);
 
-TORCH_CUDA_CU_API ForwardNormResult rms_norm(
+TORCH_CUDA_CU_API ForwardRMSNormResult rms_norm(
     TensorView* x,
     const std::vector<int64_t>& norm_shape,
     TensorView* weight,
     // TensorView* bias,
     Val* eps);
 
-TORCH_CUDA_CU_API ForwardNormResult rms_norm(
+TORCH_CUDA_CU_API ForwardRMSNormResult rms_norm(
     TensorView* x,
     const size_t kNormShapeNumDims,
     TensorView* weight,
@@ -97,7 +107,7 @@ TORCH_CUDA_CU_API BackwardNormResult layer_norm_backward(
     TensorView* bias,
     const std::vector<bool>& output_mask);
 
-TORCH_CUDA_CU_API BackwardNormResult rms_norm_backward(
+TORCH_CUDA_CU_API BackwardRMSNormResult rms_norm_backward(
     TensorView* dy,
     TensorView* x,
     const std::vector<int64_t>& norm_shape,
