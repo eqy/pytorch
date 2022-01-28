@@ -8663,8 +8663,8 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormBackward_CUDA) {
   std::unique_ptr<Fusion> fusion_ptr = std::make_unique<Fusion>();
   Fusion& fusion = *fusion_ptr.get();
   FusionGuard fg(&fusion);
-  const size_t NORM_SIZE = 67;
-  std::vector<int64_t> shape{20, 100, 35, NORM_SIZE};
+  const size_t NORM_SIZE = 1024;
+  std::vector<int64_t> shape{8, 56, NORM_SIZE};
   std::vector<int64_t> norm_shape{NORM_SIZE};
 
   const size_t kM = shape.size();
@@ -8679,81 +8679,49 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormBackward_CUDA) {
     outer_shape.push_back(1);
   }
 
-  auto grad_out = makeSymbolicTensor(shape.size());
-  auto input = makeSymbolicTensor(shape.size());
-  // auto mean = makeConcreteTensor(outer_shape);
+  // auto grad_out = makeSymbolicTensor(shape.size());
+  // auto input = makeSymbolicTensor(shape.size());
+  auto grad_out = makeContigTensor(shape.size());
+  auto input = makeContigTensor(shape.size());
   auto rstd = makeConcreteTensor(outer_shape);
-  auto weight = makeSymbolicTensor(norm_shape.size());
-  // auto bias = makeSymbolicTensor(norm_shape.size());
+  // auto weight = makeSymbolicTensor(norm_shape.size());
+  auto weight = makeContigTensor(norm_shape.size());
   fusion.addInput(grad_out);
   fusion.addInput(input);
-  // fusion.addInput(mean);
   fusion.addInput(rstd);
   fusion.addInput(weight);
-  // fusion.addInput(bias);
   
-  // auto grads = layer_norm_backward(
-  //     grad_out,
-  //     input,
-  //     norm_shape,
-  //     mean,
-  //     rstd,
-  //     weight,
-  //     bias,
-  //     {true, true, true});
-
   auto grads = rms_norm_backward(
       grad_out,
       input,
       norm_shape,
       rstd,
       weight,
-      // bias,
       {true, true});
 
   fusion.addOutput(grads.grad_input);
   fusion.addOutput(grads.grad_weight);
-  // fusion.addOutput(grads.grad_bias);
 
   auto options = at::TensorOptions().dtype(at::kFloat).device(at::kCUDA, 0);
   at::Tensor aten_grad_out = at::randn(shape, options);
   at::Tensor aten_input = at::randn(shape, options);
   at::Tensor aten_weight = at::randn(norm_shape, options);
-  // at::Tensor aten_bias = at::randn(norm_shape, options);
   auto at_weight = c10::optional<at::Tensor>(aten_weight);
-  // auto at_bias = c10::optional<at::Tensor>(aten_bias);
 
   const float kEps = 1e-6;
-  //auto aten_results =
-  //    at::native_layer_norm(aten_input, norm_shape, at_weight, at_bias, kEps);
-  //auto aten_output = std::get<0>(aten_results);
-  // auto aten_mean = std::get<1>(aten_results);
-  //auto aten_rstd = std::get<2>(aten_results);
   auto pow2 = at::pow(aten_input, 2);
   auto sum = at::sum(pow2, -1, true);
   auto var = at::mul(sum, 1.0/NORM_SIZE);
   auto aten_rstd = at::pow(at::add(var, kEps), -0.5);
-  // auto aten_output = at::mul(at::mul(aten_input, invstd), aten_weight);
-
 
   FusionExecutorCache fec(std::move(fusion_ptr));
   std::vector<IValue> aten_inputs = {
       aten_grad_out, aten_input, /*aten_mean,*/ aten_rstd, aten_weight/*, aten_bias*/};
   auto cg_outputs = fec.runFusionWithInputs(aten_inputs);
 
-  //auto aten_gradients = at::native_layer_norm_backward(
-  //    aten_grad_out.to(at::kDouble),
-  //    aten_input.to(at::kDouble),
-  //    norm_shape,
-  //    aten_mean.to(at::kDouble),
-  //    aten_rstd.to(at::kDouble),
-  //    c10::optional<at::Tensor>(aten_weight.to(at::kDouble)),
-  //    c10::optional<at::Tensor>(aten_bias.to(at::kDouble)),
-  //    {true, true, true});
   auto in_mul_rstd = at::mul(aten_input, aten_rstd);
   auto grad_out_mul = at::mul(aten_grad_out, in_mul_rstd);
-  auto aten_grad_weight = at::sum(grad_out_mul, c10::IntArrayRef{0, 1, 2});
-
+  auto aten_grad_weight = at::sum(grad_out_mul, c10::IntArrayRef{0, 1});
   auto sum_loss1 = at::sum(at::mul(aten_grad_out, aten_weight), -1, true);
   auto sum_loss2 = at::sum(at::mul(at::mul(at::mul(aten_grad_out, aten_weight), aten_input), aten_rstd), -1, true);
 
@@ -8831,30 +8799,25 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormalization_CUDA) {
   Fusion& fusion = *fusion_ptr.get();
   FusionGuard fg(&fusion);
 
-  // const float kEps = 1e-5;
-  size_t NORM_SIZE = 67;
+  size_t NORM_SIZE = 1024;
   const float kEps = 1e-6;
   Double* eps_ptr = IrBuilder::create<Double>(kEps);
 
-  std::vector<int64_t> input_shape{20, 100, 35, NORM_SIZE};
+  std::vector<int64_t> input_shape{8, 56, NORM_SIZE};
   std::vector<int64_t> norm_shape{NORM_SIZE};
 
-  auto input = makeSymbolicTensor(input_shape.size());
+  // auto input = makeSymbolicTensor(input_shape.size());
+  auto input = makeContigTensor(input_shape.size());
   fusion.addInput(input);
-  // auto result = layer_norm(input, norm_shape, nullptr, nullptr, eps_ptr);
   auto result = rms_norm(input, norm_shape, nullptr, /* nullptr, */ eps_ptr);
 
   fusion.addOutput(result.output);
-  // fusion.addOutput(result.mean);
   fusion.addOutput(result.invstd);
 
   auto options = at::TensorOptions().dtype(at::kFloat).device(at::kCUDA, 0);
   at::Tensor aten_input = at::randn(input_shape, options);
   c10::optional<at::Tensor> aten_weight = c10::nullopt;
 
-  // c10::optional<at::Tensor> aten_bias = c10::nullopt;
-  // auto aten_outputs = at::native_layer_norm(
-  //    aten_input, norm_shape, aten_weight, aten_bias, kEps);
   auto pow2 = at::pow(aten_input, 2);
 
   auto sum = at::sum(pow2, -1, true);
