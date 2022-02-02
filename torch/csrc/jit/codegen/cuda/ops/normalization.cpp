@@ -225,16 +225,14 @@ ForwardRMSNormResult rms_norm(
     TensorView* x,
     const std::vector<int64_t>& norm_shape,
     TensorView* weight,
-    /* TensorView* bias, */
     Val* eps) {
-  return rms_norm(x, norm_shape.size(), weight, /* bias, */ eps);
+  return rms_norm(x, norm_shape.size(), weight, eps);
 }
 
 ForwardRMSNormResult rms_norm(
     TensorView* x,
     const size_t kNormShapeNumDims,
     TensorView* weight,
-    /* TensorView* bias, */
     Val* eps) {
   TORCH_INTERNAL_ASSERT(x != nullptr, "Input is invalid.");
   TORCH_INTERNAL_ASSERT(
@@ -281,7 +279,6 @@ ForwardRMSNormResult rms_norm(
   auto var_eps = add(var, eps);
   auto invstd = rsqrt(var_eps);
 
-  // auto y = mul(x_sub_mean, invstd);
   auto y = mul(x, invstd);
 
   // Optional: norm * weight
@@ -290,13 +287,7 @@ ForwardRMSNormResult rms_norm(
     y = mul(y, weight_bcast);
   }
 
-  // Optional: norm * weight + bias
-  // if (bias != nullptr) {
-  //  auto bias_bcast = broadcast(bias, outer_broadcast_mask);
-  //  y = add(y, bias_bcast);
-  // }
-
-  return {y, /* mean_bcast, */ invstd};
+  return {y, invstd};
 }
 
 
@@ -385,14 +376,11 @@ BackwardRMSNormResult rms_norm_backward(
     TensorView* dy,
     TensorView* x,
     const std::vector<int64_t>& norm_shape,
-    // TensorView* mean,
     TensorView* invstd,
     TensorView* weight,
-    // TensorView* bias,
     const std::vector<bool>& output_mask) {
   TORCH_INTERNAL_ASSERT(dy != nullptr, "Grad Output is invalid.");
   TORCH_INTERNAL_ASSERT(x != nullptr, "Input is invalid.");
-  // TORCH_INTERNAL_ASSERT(mean != nullptr, "Mean is invalid.");
   TORCH_INTERNAL_ASSERT(invstd != nullptr, "Inv std is invalid.");
 
   // (B, C, H, W, D) tensor
@@ -422,7 +410,6 @@ BackwardRMSNormResult rms_norm_backward(
     num_features = mul(num_features, x->domain()->domain()[axis]->extent());
   }
 
-  // auto x_hat = mul(sub(x, mean), invstd);
   auto x_hat = mul(x, invstd);
 
   TensorView* grad_x_hat = nullptr;
@@ -456,11 +443,7 @@ BackwardRMSNormResult rms_norm_backward(
     dw = sum(mul(dy, x_hat), outer_reduction_axes);
   }
 
-  // TensorView* db = nullptr;
-  // if (output_mask[2] && bias != nullptr) {
-  //  db = sum(dy, outer_reduction_axes);
-  // }
-  return {dx, dw/*, db*/};
+  return {dx, dw};
 }
 
 

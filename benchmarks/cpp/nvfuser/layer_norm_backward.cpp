@@ -87,13 +87,6 @@ static void setupRMSNorm_BWD(Fusion* fusion, DataType dtype) {
   auto grad_out = makeContigTensor(3, dtype);
   auto input = makeContigTensor(3, dtype);
   auto weight = makeContigTensor(1, dtype);
-  // auto bias = makeContigTensor(1, dtype);
-
-  // auto mean = TensorViewBuilder()
-  //                 .contiguity({false, false})
-  //                 .shape({-1, 1})
-  //                 .dtype(dtype)
-  //                 .build();
   auto rstd = TensorViewBuilder()
                   .contiguity({false, false, false})
                   .shape({8, -1, 1})
@@ -103,16 +96,12 @@ static void setupRMSNorm_BWD(Fusion* fusion, DataType dtype) {
   fusion->addInput(grad_out);
   fusion->addInput(input);
   fusion->addInput(weight);
-  // fusion->addInput(bias);
-  // fusion->addInput(mean);
   fusion->addInput(rstd);
 
   if (dtype == DataType::Half) {
     grad_out = castOp(DataType::Float, grad_out);
     input = castOp(DataType::Float, input);
     weight = castOp(DataType::Float, weight);
-    // bias = castOp(DataType::Float, bias);
-    // mean = castOp(DataType::Float, mean);
     rstd = castOp(DataType::Float, rstd);
   }
 
@@ -188,7 +177,7 @@ static void NvFuserScheduler_RMSNorm_BWD(
 
   benchmark_state.SetBytesProcessed(
       int64_t(benchmark_state.iterations()) *
-      (3 * input.numel() + weight.numel() + 
+      (3 * input.numel() + weight.numel() +
        rstd.numel()) *
       int64_t(dataTypeSize(dtype)));
 }

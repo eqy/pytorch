@@ -66,19 +66,15 @@ static void setupRMSNorm(Fusion* fusion, DataType dtype) {
   // setup fusion
   auto input = makeContigTensor(3, dtype);
   auto weight = makeContigTensor(1, dtype);
-  // auto bias = makeContigTensor(1, dtype);
 
   fusion->addInput(input);
   fusion->addInput(weight);
-  // fusion->addInput(bias);
 
   if (dtype == DataType::Half) {
     input = castOp(DataType::Float, input);
     weight = castOp(DataType::Float, weight);
-    // bias = castOp(DataType::Float, bias);
   }
 
-  // auto layer_norm_results = layer_norm(input, 1, weight, bias, eps_ptr);
   auto rms_norm_results = rms_norm(input, 1, weight, eps_ptr);
 
   auto output = rms_norm_results.output;
@@ -107,7 +103,6 @@ static void NvFuserScheduler_RMSNorm(
       at::TensorOptions().dtype(data_type_to_aten(dtype)).device(at::kCUDA, 0);
   at::Tensor input = at::randn(input_shape, options);
   at::Tensor weight = at::randn({input_shape[2]}, options);
-  // at::Tensor bias = at::randn({input_shape[1]}, options);
 
   std::vector<c10::IValue> aten_inputs({input, weight});
 

@@ -8679,18 +8679,15 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormBackward_CUDA) {
     outer_shape.push_back(1);
   }
 
-  // auto grad_out = makeSymbolicTensor(shape.size());
-  // auto input = makeSymbolicTensor(shape.size());
   auto grad_out = makeContigTensor(shape.size());
   auto input = makeContigTensor(shape.size());
   auto rstd = makeConcreteTensor(outer_shape);
-  // auto weight = makeSymbolicTensor(norm_shape.size());
   auto weight = makeContigTensor(norm_shape.size());
   fusion.addInput(grad_out);
   fusion.addInput(input);
   fusion.addInput(rstd);
   fusion.addInput(weight);
-  
+
   auto grads = rms_norm_backward(
       grad_out,
       input,
@@ -8716,7 +8713,7 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormBackward_CUDA) {
 
   FusionExecutorCache fec(std::move(fusion_ptr));
   std::vector<IValue> aten_inputs = {
-      aten_grad_out, aten_input, /*aten_mean,*/ aten_rstd, aten_weight/*, aten_bias*/};
+      aten_grad_out, aten_input, aten_rstd, aten_weight};
   auto cg_outputs = fec.runFusionWithInputs(aten_inputs);
 
   auto in_mul_rstd = at::mul(aten_input, aten_rstd);
@@ -8806,10 +8803,9 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormalization_CUDA) {
   std::vector<int64_t> input_shape{8, 56, NORM_SIZE};
   std::vector<int64_t> norm_shape{NORM_SIZE};
 
-  // auto input = makeSymbolicTensor(input_shape.size());
   auto input = makeContigTensor(input_shape.size());
   fusion.addInput(input);
-  auto result = rms_norm(input, norm_shape, nullptr, /* nullptr, */ eps_ptr);
+  auto result = rms_norm(input, norm_shape, nullptr, eps_ptr);
 
   fusion.addOutput(result.output);
   fusion.addOutput(result.invstd);
@@ -8839,9 +8835,8 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormalization_CUDA) {
       &fusion,
       cg_outputs,
       {aten_input},
-      {output,//std::get<0>(aten_outputs),
-       invstd},//std::get<1>(aten_outputs),
-       //std::get<2>(aten_outputs)},
+      {output,
+       invstd},
       __LINE__,
       __FILE__,
       "",
