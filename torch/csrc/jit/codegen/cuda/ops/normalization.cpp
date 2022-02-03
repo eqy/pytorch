@@ -156,6 +156,41 @@ ForwardNormResult layer_norm(
   return layer_norm(x, norm_shape.size(), weight, bias, eps);
 }
 
+void layer_norm_axes(const TensorView* x,
+		     const size_t kNormShapeNumDims,
+		     std::vector<int> & outer_reduction_axes,
+		     std::vector<bool> & outer_broadcast_mask,
+		     std::vector<int> & inner_reduction_axes,
+		     std::vector<bool> & inner_broadcast_mask,
+		     Val* &num_features) {
+  // (B, C, H, W, D) tensor
+  // norm_shape = [H, W, D]
+  // M = outer = product of remaining dimensions = B * C
+  // N = reduction = product of norm_shape = H * W * D
+  // weight = bias = norm_shape tensor
+  const size_t kNumberOfDims =
+      TensorDomain::noReductions(x->getMaybeRFactorDomain()).size();
+  const size_t kOuterNumDims = kNumberOfDims - kNormShapeNumDims;
+
+  outer_reduction_axes = std::vector<int>(kOuterNumDims);
+  outer_broadcast_mask = std::vector<bool>(kNumberOfDims, false);
+  inner_reduction_axes = std::vector<int>(kNormShapeNumDims);
+  inner_broadcast_mask = std::vector<bool>(kNumberOfDims, false);
+
+  for (const auto idx : c10::irange(kOuterNumDims)) {
+    outer_reduction_axes[idx] = idx;
+    outer_broadcast_mask[idx] = true;
+  }
+
+  num_features = IrBuilder::create<Double>(x->container(), 1);
+  for (const auto idx : c10::irange(kNormShapeNumDims)) {
+    const size_t axis = kNumberOfDims - 1 - idx;
+    inner_reduction_axes[idx] = axis;
+    inner_broadcast_mask[axis] = true;
+    num_features = mul(num_features, x->domain()->domain()[axis]->extent());
+  }
+}
+
 ForwardNormResult layer_norm(
     TensorView* x,
     const size_t kNormShapeNumDims,
@@ -168,31 +203,12 @@ ForwardNormResult layer_norm(
           eps->getDataType().value() == DataType::Double,
       "Epsilon (eps) is not a valid Double.");
 
-  // (B, C, H, W, D) tensor
-  // norm_shape = [H, W, D]
-  // M = outer = product of remaining dimensions = B * C
-  // N = reduction = product of norm_shape = H * W * D
-  // weight = bias = norm_shape tensor
-  const size_t kNumberOfDims =
-      TensorDomain::noReductions(x->getMaybeRFactorDomain()).size();
-  const size_t kOuterNumDims = kNumberOfDims - kNormShapeNumDims;
-
-  std::vector<int> outer_reduction_axes(kOuterNumDims);
-  std::vector<bool> outer_broadcast_mask(kNumberOfDims, false);
-  for (const auto idx : c10::irange(kOuterNumDims)) {
-    outer_reduction_axes[idx] = idx;
-    outer_broadcast_mask[idx] = true;
-  }
-
-  std::vector<int> inner_reduction_axes(kNormShapeNumDims);
-  std::vector<bool> inner_broadcast_mask(kNumberOfDims, false);
-  Val* num_features = IrBuilder::create<Double>(x->container(), 1);
-  for (const auto idx : c10::irange(kNormShapeNumDims)) {
-    const size_t axis = kNumberOfDims - 1 - idx;
-    inner_reduction_axes[idx] = axis;
-    inner_broadcast_mask[axis] = true;
-    num_features = mul(num_features, x->domain()->domain()[axis]->extent());
-  }
+  std::vector<int> outer_reduction_axes;
+  std::vector<bool> outer_broadcast_mask;
+  std::vector<int> inner_reduction_axes;
+  std::vector<bool> inner_broadcast_mask;
+  Val* num_features;
+  layer_norm_axes(x, kNormShapeNumDims, outer_reduction_axes, outer_broadcast_mask, inner_reduction_axes, inner_broadcast_mask, num_features);
 
   // Main algorithm
   auto welford_out = Welford(x, inner_reduction_axes);
@@ -240,31 +256,12 @@ ForwardRMSNormResult rms_norm(
           eps->getDataType().value() == DataType::Double,
       "Epsilon (eps) is not a valid Double.");
 
-  // (B, C, H, W, D) tensor
-  // norm_shape = [H, W, D]
-  // M = outer = product of remaining dimensions = B * C
-  // N = reduction = product of norm_shape = H * W * D
-  // weight = bias = norm_shape tensor
-  const size_t kNumberOfDims =
-      TensorDomain::noReductions(x->getMaybeRFactorDomain()).size();
-  const size_t kOuterNumDims = kNumberOfDims - kNormShapeNumDims;
-
-  std::vector<int> outer_reduction_axes(kOuterNumDims);
-  std::vector<bool> outer_broadcast_mask(kNumberOfDims, false);
-  for (const auto idx : c10::irange(kOuterNumDims)) {
-    outer_reduction_axes[idx] = idx;
-    outer_broadcast_mask[idx] = true;
-  }
-
-  std::vector<int> inner_reduction_axes(kNormShapeNumDims);
-  std::vector<bool> inner_broadcast_mask(kNumberOfDims, false);
-  Val* num_features = IrBuilder::create<Double>(x->container(), 1);
-  for (const auto idx : c10::irange(kNormShapeNumDims)) {
-    const size_t axis = kNumberOfDims - 1 - idx;
-    inner_reduction_axes[idx] = axis;
-    inner_broadcast_mask[axis] = true;
-    num_features = mul(num_features, x->domain()->domain()[axis]->extent());
-  }
+  std::vector<int> outer_reduction_axes;
+  std::vector<bool> outer_broadcast_mask;
+  std::vector<int> inner_reduction_axes;
+  std::vector<bool> inner_broadcast_mask;
+  Val* num_features;
+  layer_norm_axes(x, kNormShapeNumDims, outer_reduction_axes, outer_broadcast_mask, inner_reduction_axes, inner_broadcast_mask, num_features);
 
   // Main algorithm
   // auto welford_out = Welford(x, inner_reduction_axes);
@@ -305,32 +302,12 @@ BackwardNormResult layer_norm_backward(
   TORCH_INTERNAL_ASSERT(mean != nullptr, "Mean is invalid.");
   TORCH_INTERNAL_ASSERT(invstd != nullptr, "Inv std is invalid.");
 
-  // (B, C, H, W, D) tensor
-  // norm_shape = [H, W, D]
-  // M = outer = product of remaining dimensions = B * C
-  // N = reduction = product of norm_shape = H * W * D
-  // weight = bias = norm_shape tensor
-  const size_t kNumberOfDims =
-      TensorDomain::noReductions(x->getMaybeRFactorDomain()).size();
-  const size_t kNormShapeNumDims = norm_shape.size();
-  const size_t kOuterNumDims = kNumberOfDims - kNormShapeNumDims;
-
-  std::vector<int> outer_reduction_axes(kOuterNumDims);
-  std::vector<bool> outer_broadcast_mask(kNumberOfDims, false);
-  for (const auto idx : c10::irange(kOuterNumDims)) {
-    outer_reduction_axes[idx] = idx;
-    outer_broadcast_mask[idx] = true;
-  }
-
-  std::vector<int> inner_reduction_axes(kNormShapeNumDims);
-  std::vector<bool> inner_broadcast_mask(kNumberOfDims, false);
-  Val* num_features = IrBuilder::create<Double>(x->container(), 1);
-  for (const auto idx : c10::irange(kNormShapeNumDims)) {
-    const size_t axis = kNumberOfDims - 1 - idx;
-    inner_reduction_axes[idx] = axis;
-    inner_broadcast_mask[axis] = true;
-    num_features = mul(num_features, x->domain()->domain()[axis]->extent());
-  }
+  std::vector<int> outer_reduction_axes;
+  std::vector<bool> outer_broadcast_mask;
+  std::vector<int> inner_reduction_axes;
+  std::vector<bool> inner_broadcast_mask;
+  Val* num_features;
+  layer_norm_axes(x, norm_shape.size(), outer_reduction_axes, outer_broadcast_mask, inner_reduction_axes, inner_broadcast_mask, num_features);
 
   auto x_hat = mul(sub(x, mean), invstd);
 
@@ -383,32 +360,12 @@ BackwardRMSNormResult rms_norm_backward(
   TORCH_INTERNAL_ASSERT(x != nullptr, "Input is invalid.");
   TORCH_INTERNAL_ASSERT(invstd != nullptr, "Inv std is invalid.");
 
-  // (B, C, H, W, D) tensor
-  // norm_shape = [H, W, D]
-  // M = outer = product of remaining dimensions = B * C
-  // N = reduction = product of norm_shape = H * W * D
-  // weight = bias = norm_shape tensor
-  const size_t kNumberOfDims =
-      TensorDomain::noReductions(x->getMaybeRFactorDomain()).size();
-  const size_t kNormShapeNumDims = norm_shape.size();
-  const size_t kOuterNumDims = kNumberOfDims - kNormShapeNumDims;
-
-  std::vector<int> outer_reduction_axes(kOuterNumDims);
-  std::vector<bool> outer_broadcast_mask(kNumberOfDims, false);
-  for (const auto idx : c10::irange(kOuterNumDims)) {
-    outer_reduction_axes[idx] = idx;
-    outer_broadcast_mask[idx] = true;
-  }
-
-  std::vector<int> inner_reduction_axes(kNormShapeNumDims);
-  std::vector<bool> inner_broadcast_mask(kNumberOfDims, false);
-  Val* num_features = IrBuilder::create<Double>(x->container(), 1);
-  for (const auto idx : c10::irange(kNormShapeNumDims)) {
-    const size_t axis = kNumberOfDims - 1 - idx;
-    inner_reduction_axes[idx] = axis;
-    inner_broadcast_mask[axis] = true;
-    num_features = mul(num_features, x->domain()->domain()[axis]->extent());
-  }
+  std::vector<int> outer_reduction_axes;
+  std::vector<bool> outer_broadcast_mask;
+  std::vector<int> inner_reduction_axes;
+  std::vector<bool> inner_broadcast_mask;
+  Val* num_features;
+  layer_norm_axes(x, norm_shape.size(), outer_reduction_axes, outer_broadcast_mask, inner_reduction_axes, inner_broadcast_mask, num_features);
 
   auto x_hat = mul(x, invstd);
 
