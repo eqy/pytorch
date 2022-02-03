@@ -113,7 +113,6 @@ TORCH_CUDA_CU_API BackwardRMSNormResult rms_norm_backward(
     TensorView* weight,
     const std::vector<bool>& output_mask);
 
-
 TORCH_CUDA_CU_API ForwardNormResult batch_norm(
     TensorView* x,
     TensorView* weight,

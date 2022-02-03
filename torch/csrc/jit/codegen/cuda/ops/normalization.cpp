@@ -156,13 +156,14 @@ ForwardNormResult layer_norm(
   return layer_norm(x, norm_shape.size(), weight, bias, eps);
 }
 
-void layer_norm_axes(const TensorView* x,
-		     const size_t kNormShapeNumDims,
-		     std::vector<int> & outer_reduction_axes,
-		     std::vector<bool> & outer_broadcast_mask,
-		     std::vector<int> & inner_reduction_axes,
-		     std::vector<bool> & inner_broadcast_mask,
-		     Val* &num_features) {
+void layer_norm_axes(
+    const TensorView* x,
+    const size_t kNormShapeNumDims,
+    std::vector<int>& outer_reduction_axes,
+    std::vector<bool>& outer_broadcast_mask,
+    std::vector<int>& inner_reduction_axes,
+    std::vector<bool>& inner_broadcast_mask,
+    Val*& num_features) {
   // (B, C, H, W, D) tensor
   // norm_shape = [H, W, D]
   // M = outer = product of remaining dimensions = B * C
@@ -208,7 +209,14 @@ ForwardNormResult layer_norm(
   std::vector<int> inner_reduction_axes;
   std::vector<bool> inner_broadcast_mask;
   Val* num_features;
-  layer_norm_axes(x, kNormShapeNumDims, outer_reduction_axes, outer_broadcast_mask, inner_reduction_axes, inner_broadcast_mask, num_features);
+  layer_norm_axes(
+      x,
+      kNormShapeNumDims,
+      outer_reduction_axes,
+      outer_broadcast_mask,
+      inner_reduction_axes,
+      inner_broadcast_mask,
+      num_features);
 
   // Main algorithm
   auto welford_out = Welford(x, inner_reduction_axes);
@@ -261,7 +269,14 @@ ForwardRMSNormResult rms_norm(
   std::vector<int> inner_reduction_axes;
   std::vector<bool> inner_broadcast_mask;
   Val* num_features;
-  layer_norm_axes(x, kNormShapeNumDims, outer_reduction_axes, outer_broadcast_mask, inner_reduction_axes, inner_broadcast_mask, num_features);
+  layer_norm_axes(
+      x,
+      kNormShapeNumDims,
+      outer_reduction_axes,
+      outer_broadcast_mask,
+      inner_reduction_axes,
+      inner_broadcast_mask,
+      num_features);
 
   // Main algorithm
   // auto welford_out = Welford(x, inner_reduction_axes);
@@ -287,7 +302,6 @@ ForwardRMSNormResult rms_norm(
   return {y, invstd};
 }
 
-
 BackwardNormResult layer_norm_backward(
     TensorView* dy,
     TensorView* x,
@@ -307,7 +321,14 @@ BackwardNormResult layer_norm_backward(
   std::vector<int> inner_reduction_axes;
   std::vector<bool> inner_broadcast_mask;
   Val* num_features;
-  layer_norm_axes(x, norm_shape.size(), outer_reduction_axes, outer_broadcast_mask, inner_reduction_axes, inner_broadcast_mask, num_features);
+  layer_norm_axes(
+      x,
+      norm_shape.size(),
+      outer_reduction_axes,
+      outer_broadcast_mask,
+      inner_reduction_axes,
+      inner_broadcast_mask,
+      num_features);
 
   auto x_hat = mul(sub(x, mean), invstd);
 
@@ -365,7 +386,14 @@ BackwardRMSNormResult rms_norm_backward(
   std::vector<int> inner_reduction_axes;
   std::vector<bool> inner_broadcast_mask;
   Val* num_features;
-  layer_norm_axes(x, norm_shape.size(), outer_reduction_axes, outer_broadcast_mask, inner_reduction_axes, inner_broadcast_mask, num_features);
+  layer_norm_axes(
+      x,
+      norm_shape.size(),
+      outer_reduction_axes,
+      outer_broadcast_mask,
+      inner_reduction_axes,
+      inner_broadcast_mask,
+      num_features);
 
   auto x_hat = mul(x, invstd);
 
@@ -402,7 +430,6 @@ BackwardRMSNormResult rms_norm_backward(
 
   return {dx, dw};
 }
-
 
 ForwardNormResult batch_norm(
     TensorView* x,

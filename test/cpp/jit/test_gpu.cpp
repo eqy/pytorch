@@ -8689,12 +8689,7 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormBackward_CUDA) {
   fusion.addInput(weight);
 
   auto grads = rms_norm_backward(
-      grad_out,
-      input,
-      norm_shape,
-      rstd,
-      weight,
-      {true, true});
+      grad_out, input, norm_shape, rstd, weight, {true, true});
 
   fusion.addOutput(grads.grad_input);
   fusion.addOutput(grads.grad_weight);
@@ -8708,7 +8703,7 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormBackward_CUDA) {
   const float kEps = 1e-6;
   auto pow2 = at::pow(aten_input, 2);
   auto sum = at::sum(pow2, -1, true);
-  auto var = at::mul(sum, 1.0/NORM_SIZE);
+  auto var = at::mul(sum, 1.0 / NORM_SIZE);
   auto aten_rstd = at::pow(at::add(var, kEps), -0.5);
 
   FusionExecutorCache fec(std::move(fusion_ptr));
@@ -8720,24 +8715,27 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormBackward_CUDA) {
   auto grad_out_mul = at::mul(aten_grad_out, in_mul_rstd);
   auto aten_grad_weight = at::sum(grad_out_mul, c10::IntArrayRef{0, 1});
   auto sum_loss1 = at::sum(at::mul(aten_grad_out, aten_weight), -1, true);
-  auto sum_loss2 = at::sum(at::mul(at::mul(at::mul(aten_grad_out, aten_weight), aten_input), aten_rstd), -1, true);
+  auto sum_loss2 = at::sum(
+      at::mul(
+          at::mul(at::mul(aten_grad_out, aten_weight), aten_input), aten_rstd),
+      -1,
+      true);
 
   const float fH = NORM_SIZE;
-  auto term1 = at::mul(aten_rstd, 1.0/fH);
+  auto term1 = at::mul(aten_rstd, 1.0 / fH);
   auto aten_grad_input = at::mul(at::mul(aten_grad_out, fH), aten_weight);
   aten_grad_input = at::sub(aten_grad_input, sum_loss1);
-  aten_grad_input = at::sub(aten_grad_input, at::mul(at::mul(aten_input, aten_rstd), sum_loss2));
+  aten_grad_input = at::sub(
+      aten_grad_input, at::mul(at::mul(aten_input, aten_rstd), sum_loss2));
   aten_grad_input = at::mul(aten_grad_input, term1);
   testValidate(
       &fusion,
       cg_outputs,
       aten_inputs,
-      {aten_grad_input,
-       aten_grad_weight},
+      {aten_grad_input, aten_grad_weight},
       __LINE__,
       __FILE__);
 }
-
 
 TEST_F(NVFuserTest, FusionMagicSchedulerLayerNormalization_CUDA) {
   std::unique_ptr<Fusion> fusion_ptr = std::make_unique<Fusion>();
@@ -8817,7 +8815,7 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormalization_CUDA) {
   auto pow2 = at::pow(aten_input, 2);
 
   auto sum = at::sum(pow2, -1, true);
-  auto var = at::mul(sum, 1.0/NORM_SIZE);
+  auto var = at::mul(sum, 1.0 / NORM_SIZE);
   auto invstd = at::pow(at::add(var, kEps), -0.5);
   auto output = at::mul(aten_input, invstd);
   //// Check reduction axis is same for all reductions
@@ -8835,8 +8833,7 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormalization_CUDA) {
       &fusion,
       cg_outputs,
       {aten_input},
-      {output,
-       invstd},
+      {output, invstd},
       __LINE__,
       __FILE__,
       "",
