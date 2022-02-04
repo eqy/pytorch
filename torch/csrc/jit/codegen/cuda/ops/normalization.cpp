@@ -212,7 +212,6 @@ ForwardNormResult layer_norm(
           eps->getDataType().value() == DataType::Double,
       "Epsilon (eps) is not a valid Double.");
 
-  Val* num_features;
   auto r = norm_properties_from_num_dims(x, kNormShapeNumDims);
 
   // Main algorithm
@@ -261,7 +260,6 @@ ForwardRMSNormResult rms_norm(
           eps->getDataType().value() == DataType::Double,
       "Epsilon (eps) is not a valid Double.");
 
-  Val* num_features;
   auto r = norm_properties_from_num_dims(x, kNormShapeNumDims);
 
   // Main algorithm
@@ -296,7 +294,6 @@ BackwardNormResult layer_norm_backward(
   TORCH_INTERNAL_ASSERT(mean != nullptr, "Mean is invalid.");
   TORCH_INTERNAL_ASSERT(invstd != nullptr, "Inv std is invalid.");
 
-  Val* num_features;
   auto r = norm_properties_from_num_dims(x, norm_shape.size());
 
   auto x_hat = mul(sub(x, mean), invstd);
@@ -320,7 +317,7 @@ BackwardNormResult layer_norm_backward(
   auto c3 = mul(x_hat, bcast_c2);
 
   auto inner = sub(sub(a, bcast_b), c3);
-  auto reciprocal_size = reciprocal(num_features);
+  auto reciprocal_size = reciprocal(r.num_features);
 
   TensorView* dx = nullptr;
   if (output_mask[0]) {
@@ -350,11 +347,6 @@ BackwardRMSNormResult rms_norm_backward(
   TORCH_INTERNAL_ASSERT(x != nullptr, "Input is invalid.");
   TORCH_INTERNAL_ASSERT(invstd != nullptr, "Inv std is invalid.");
 
-  std::vector<int> outer_reduction_axes;
-  std::vector<bool> outer_broadcast_mask;
-  std::vector<int> inner_reduction_axes;
-  std::vector<bool> inner_broadcast_mask;
-  Val* num_features;
   auto r = norm_properties_from_num_dims(x, norm_shape.size());
 
   auto x_hat = mul(x, invstd);
