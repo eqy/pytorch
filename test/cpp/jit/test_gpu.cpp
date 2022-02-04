@@ -8769,12 +8769,8 @@ TEST_F(NVFuserTest, FusionMagicSchedulerLayerNormalization_CUDA) {
   auto reduction_params = getPersistentHeuristics(&fusion, {aten_input});
   TORCH_CHECK(reduction_params, "Reduction schedule was not generated!");
 
-  schedulePersistentKernel(&fusion, reduction_params.value());
-  auto lparams = reduction_params.value().lparams;
-
-  torch::jit::fuser::cuda::FusionExecutor fe;
-  fe.compileFusion(&fusion, {aten_input}, lparams);
-  auto cg_outputs = fe.runFusion({aten_input}, lparams);
+  FusionExecutorCache fec(std::move(fusion_ptr));
+  auto cg_outputs = fec.runFusionWithInputs({aten_input});
 
   testValidate(
       &fusion,
@@ -8785,8 +8781,7 @@ TEST_F(NVFuserTest, FusionMagicSchedulerLayerNormalization_CUDA) {
        std::get<2>(aten_outputs)},
       __LINE__,
       __FILE__,
-      "",
-      lparams);
+      "");
 }
 
 TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormalization_CUDA) {
@@ -8822,12 +8817,9 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormalization_CUDA) {
   //// Generate Launch Parameters
   auto reduction_params = getPersistentHeuristics(&fusion, {aten_input});
   TORCH_CHECK(reduction_params, "Reduction schedule was not generated!");
-  schedulePersistentKernel(&fusion, reduction_params.value());
-  auto lparams = reduction_params.value().lparams;
 
-  torch::jit::fuser::cuda::FusionExecutor fe;
-  fe.compileFusion(&fusion);
-  auto cg_outputs = fe.runFusion({aten_input}, lparams);
+  FusionExecutorCache fec(std::move(fusion_ptr));
+  auto cg_outputs = fec.runFusionWithInputs({aten_input});
 
   testValidate(
       &fusion,
@@ -8836,8 +8828,7 @@ TEST_F(NVFuserTest, FusionMagicSchedulerRMSNormalization_CUDA) {
       {output, invstd},
       __LINE__,
       __FILE__,
-      "",
-      lparams);
+      "");
 }
 
 TEST_F(NVFuserTest, FusionMagicSchedulerBatchNormalization_CUDA) {
