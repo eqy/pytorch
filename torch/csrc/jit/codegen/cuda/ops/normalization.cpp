@@ -329,7 +329,7 @@ BackwardNormResult layer_norm_backward(
 
   TensorView* dw = nullptr;
   if (output_mask[1] && weight != nullptr) {
-    dw = sum(mul(dy, x_hat),r.outer_reduction_axes);
+    dw = sum(mul(dy, x_hat), r.outer_reduction_axes);
   }
 
   TensorView* db = nullptr;
