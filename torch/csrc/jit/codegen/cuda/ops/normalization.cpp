@@ -190,7 +190,7 @@ auto norm_properties_from_num_dims(
     std::vector<bool> outer_broadcast_mask;
     std::vector<int> inner_reduction_axes;
     std::vector<bool> inner_broadcast_mask;
-    Val* num_features = NULL;
+    Val* num_features = nullptr;
   } r;
   r.outer_reduction_axes = outer_reduction_axes;
   r.outer_broadcast_mask = outer_broadcast_mask;
