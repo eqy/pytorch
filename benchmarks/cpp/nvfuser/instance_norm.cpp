@@ -234,31 +234,31 @@ NVFUSER_BENCHMARK_DEFINE(
 
 NVFUSER_BENCHMARK_RUN(NvFuserScheduler_InstanceNorm3d_channels_last_fp32)
     ->RangeMultiplier(2)
-    ->Ranges({{2, 8}, {128, 128}, {32, 32}})
+    ->Ranges({{1, 8}, {128, 128}, {32, 32}})
     ->Unit(benchmark::kMicrosecond)
     ->UseManualTime();
 
 NVFUSER_BENCHMARK_RUN(NvFuserScheduler_InstanceNorm3d_channels_last_fp32)
     ->RangeMultiplier(2)
-    ->Ranges({{2, 8}, {64, 64}, {64, 64}})
+    ->Ranges({{1, 8}, {64, 64}, {64, 64}})
     ->Unit(benchmark::kMicrosecond)
     ->UseManualTime();
 
 NVFUSER_BENCHMARK_RUN(NvFuserScheduler_InstanceNorm3d_channels_last_fp32)
     ->RangeMultiplier(2)
-    ->Ranges({{2, 8}, {32, 32}, {128, 128}})
+    ->Ranges({{1, 8}, {32, 32}, {128, 128}})
     ->Unit(benchmark::kMicrosecond)
     ->UseManualTime();
 
 NVFUSER_BENCHMARK_RUN(NvFuserScheduler_InstanceNorm3d_channels_last_fp32)
     ->RangeMultiplier(2)
-    ->Ranges({{2, 8}, {16, 16}, {256, 256}})
+    ->Ranges({{1, 8}, {16, 16}, {256, 256}})
     ->Unit(benchmark::kMicrosecond)
     ->UseManualTime();
 
 NVFUSER_BENCHMARK_RUN(NvFuserScheduler_InstanceNorm3d_channels_last_fp32)
     ->RangeMultiplier(2)
-    ->Ranges({{2, 8}, {4, 8}, {320, 320}})
+    ->Ranges({{1, 8}, {4, 8}, {320, 320}})
     ->Unit(benchmark::kMicrosecond)
     ->UseManualTime();
 
