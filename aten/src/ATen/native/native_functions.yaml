@@ -1465,6 +1465,10 @@
   dispatch:
     CUDA: cudnn_convolution_add_relu
 
+- func: cudnn_mha(int embed_dim, int num_heads, Tensor self, Tensor qkv_weight, Tensor out_weight, Tensor qkv_bias, Tensor out_bias) -> Tensor
+  dispatch:
+    CUDA: cudnn_mha
+
 # NB: input is special cased in a way I don't quite understand
 - func: cudnn_grid_sampler(Tensor self, Tensor grid) -> Tensor output
   dispatch:
