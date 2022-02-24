@@ -700,29 +700,45 @@ ForwardNormResult instance_norm(
 
     // updating running mean and running var
     if (running_mean != nullptr && running_var != nullptr) {
+      auto _running_mean = running_mean;
+      auto _running_var = running_var;
+      if (_running_mean->getDataType().value() != DataType::Float) {
+        _running_mean = castOp(DataType::Float, _running_mean);
+      }
+      if (_running_var->getDataType().value() != DataType::Float) {
+        _running_var = castOp(DataType::Float, running_var);
+      }
       auto rev_momentum =
           sub(IrBuilder::create<Double>(x->container(), 1.0), momentum);
       auto current_mean_hat = mul(welford_out.avg, momentum);
-      auto mean_hat = mul(running_mean, rev_momentum);
+      auto mean_hat = mul(_running_mean, rev_momentum);
       auto new_mean_hat = add(mean_hat, current_mean_hat);
 
       // NS: static_cast to workaround VC++ error, see
       // https://godbolt.org/z/6Prd77xYs
       auto new_mean_sum = sum(new_mean_hat, {static_cast<int>(kBatchDim)});
       auto new_mean_channels_only = mul(new_mean_sum, reciprocal(B));
+      if (running_mean->getDataType().value() != DataType::Float) {
+        new_mean_channels_only = castOp(running_mean->getDataType().value(), new_mean_channels_only);
+      }
+      fusion->addOutput(new_mean_channels_only);
       fusion->aliasOutputToInput(new_mean_channels_only, running_mean);
 
       auto num_feature_decrement = sub(N, x->container()->oneVal());
       auto unbiased_var =
           mul(welford_out.var_sum, reciprocal(num_feature_decrement));
       auto current_var_hat = mul(unbiased_var, momentum);
-      auto var_hat = mul(running_var, rev_momentum);
+      auto var_hat = mul(_running_var, rev_momentum);
       auto new_var_hat = add(var_hat, current_var_hat);
 
       // NS: static_cast to workaround VC++ error, see
       // https://godbolt.org/z/6Prd77xYs
       auto new_var_sum = sum(new_var_hat, {static_cast<int>(kBatchDim)});
       auto new_var_channels_only = mul(new_var_sum, reciprocal(B));
+      if (running_var->getDataType().value() != DataType::Float) {
+        new_var_channels_only = castOp(running_var->getDataType().value(), new_var_channels_only);
+      }
+      fusion->addOutput(new_var_channels_only);
       fusion->aliasOutputToInput(new_var_channels_only, running_var);
     }
 
@@ -764,6 +780,112 @@ ForwardNormResult instance_norm(
     y = add(y, bias_bcast);
   }
   return {y, mean, invstd};
+}
+
+BackwardNormResult instance_norm_backward(
+    TensorView* input,
+    TensorView* grad_output,
+    TensorView* weight,
+    TensorView* running_mean,
+    TensorView* running_var,
+    TensorView* save_mean,
+    TensorView* save_invstd,
+    const bool kTraining,
+    Val* eps,
+    const std::vector<bool>& output_mask,
+    bool channels_last) {
+  TORCH_INTERNAL_ASSERT(input != nullptr, "Input is invalid.");
+  TORCH_INTERNAL_ASSERT(grad_output != nullptr, "Grad Output is invalid.");
+  TORCH_INTERNAL_ASSERT(
+      eps != nullptr && eps->getDataType().has_value() &&
+          eps->getDataType().value() == DataType::Double,
+      "Epsilon (eps) is not a valid Double.");
+
+  // (B, C, H, W, D) tensor
+  // M = outer = channels
+  // N = reduction = B * H * W * D
+  // weight = bias = (C) tensor
+  const size_t kNumberOfDims =
+      TensorDomain::noReductions(input->getMaybeRFactorDomain()).size();
+  // channels last format means C dimension is at axis kNumberOfDims-1 at x /
+  // grad_out
+  const size_t b_axis = 0; // for clarity
+  const size_t c_axis = channels_last ? kNumberOfDims - 1 : 1;
+
+  std::vector<int> reduction_axes;
+  std::vector<bool> broadcast_mask(kNumberOfDims, false);
+  // weight has its own broadcast mask as it is broadcast for the batch unlike mean/var
+  std::vector<bool> weight_broadcast_mask(kNumberOfDims, false);
+  Val* num_features = nullptr;
+  for (const auto axis : c10::irange(kNumberOfDims)) {
+    if (axis != c_axis) {
+      weight_broadcast_mask[axis] = true;
+      if (axis != b_axis) {
+        reduction_axes.push_back(axis);
+        broadcast_mask[axis] = true;
+        if (num_features == nullptr) {
+          num_features =
+            castOp(DataType::Double, input->domain()->domain()[axis]->extent());
+        } else {
+          num_features =
+            mul(num_features, input->domain()->domain()[axis]->extent());
+	}
+      }
+    }
+  }
+
+  auto mean = save_mean;
+  auto invstd = save_invstd;
+  if (kTraining) {
+    TORCH_INTERNAL_ASSERT(
+        save_mean != nullptr && save_invstd != nullptr,
+        "When training=True, save_mean and save_invstd are required.");
+  } else {
+    mean = running_mean;
+    invstd = rsqrt(add(running_var, eps));
+  }
+  mean = broadcast(mean, broadcast_mask);
+
+  auto norm = reciprocal(num_features);
+
+  auto grad_output_sum = sum(grad_output, reduction_axes);
+  auto dot_p = sum(mul(grad_output, sub(input, mean)), reduction_axes);
+
+  auto grad_mean = broadcast(mul(grad_output_sum, norm), broadcast_mask);
+
+  auto proj_scale =
+      broadcast(mul(mul(dot_p, norm), mul(invstd, invstd)), broadcast_mask);
+
+  TensorView* grad_scale = nullptr;
+
+  if (weight == nullptr) {
+    grad_scale =
+        mul(broadcast(invstd, broadcast_mask),
+            IrBuilder::create<Double>(input->container(), 1));
+  } else {
+    grad_scale = mul(
+        broadcast(invstd, broadcast_mask), broadcast(weight, weight_broadcast_mask));
+  }
+
+  TensorView* grad_input = nullptr;
+  if (kTraining) {
+    auto proj = mul(sub(input, mean), proj_scale);
+    grad_input = mul(sub(sub(grad_output, proj), grad_mean), grad_scale);
+  } else {
+    grad_input = mul(grad_output, grad_scale);
+  }
+
+  TensorView* grad_weight = nullptr;
+  if (output_mask[1]) {
+    grad_weight = mul(dot_p, invstd);
+  }
+
+  TensorView* grad_bias = nullptr;
+  if (output_mask[2]) {
+    grad_bias = grad_output_sum;
+  }
+
+  return {grad_input, grad_weight, grad_bias};
 }
 
 } // namespace cuda
