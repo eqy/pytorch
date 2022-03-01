@@ -876,16 +876,22 @@ BackwardNormResult instance_norm_backward(
   }
 
   TensorView* grad_weight = nullptr;
+  TensorView* grad_weight_reduced = nullptr;
   if (output_mask[1]) {
     grad_weight = mul(dot_p, invstd);
+    // TODO: grad weight needs to be reduced across batch-dim but is this the most efficient place or can reduction happen earlier?
+    grad_weight_reduced = sum(grad_weight, {0});
   }
 
   TensorView* grad_bias = nullptr;
+  TensorView* grad_bias_reduced = nullptr;
   if (output_mask[2]) {
     grad_bias = grad_output_sum;
+    // TODO: same as above for grad weight
+    grad_bias_reduced = sum(grad_bias, {0});
   }
 
-  return {grad_input, grad_weight, grad_bias};
+  return {grad_input, grad_weight_reduced, grad_bias_reduced};
 }
 
 } // namespace cuda
