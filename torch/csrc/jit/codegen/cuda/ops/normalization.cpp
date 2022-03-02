@@ -702,10 +702,12 @@ ForwardNormResult instance_norm(
     if (running_mean != nullptr && running_var != nullptr) {
       auto _running_mean = running_mean;
       auto _running_var = running_var;
-      if (_running_mean->getDataType().value() != DataType::Float) {
+      if (_running_mean->getDataType().value() == DataType::Half ||
+          _running_mean->getDataType().value() == DataType::BFloat16) {
         _running_mean = castOp(DataType::Float, _running_mean);
       }
-      if (_running_var->getDataType().value() != DataType::Float) {
+      if (_running_var->getDataType().value() == DataType::Half ||
+          _running_var->getDataType().value() == DataType::BFloat16) {
         _running_var = castOp(DataType::Float, running_var);
       }
       auto rev_momentum =
@@ -718,7 +720,8 @@ ForwardNormResult instance_norm(
       // https://godbolt.org/z/6Prd77xYs
       auto new_mean_sum = sum(new_mean_hat, {static_cast<int>(kBatchDim)});
       auto new_mean_channels_only = mul(new_mean_sum, reciprocal(B));
-      if (running_mean->getDataType().value() != DataType::Float) {
+      if (running_mean->getDataType().value() == DataType::Half ||
+          running_mean->getDataType().value() == DataType::BFloat16) {
         new_mean_channels_only = castOp(running_mean->getDataType().value(), new_mean_channels_only);
       }
       fusion->addOutput(new_mean_channels_only);
@@ -735,7 +738,8 @@ ForwardNormResult instance_norm(
       // https://godbolt.org/z/6Prd77xYs
       auto new_var_sum = sum(new_var_hat, {static_cast<int>(kBatchDim)});
       auto new_var_channels_only = mul(new_var_sum, reciprocal(B));
-      if (running_var->getDataType().value() != DataType::Float) {
+      if (running_var->getDataType().value() == DataType::Half ||
+          running_var->getDataType().value() == DataType::BFloat16) {
         new_var_channels_only = castOp(running_var->getDataType().value(), new_var_channels_only);
       }
       fusion->addOutput(new_var_channels_only);
