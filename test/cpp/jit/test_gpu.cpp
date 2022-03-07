@@ -9130,6 +9130,7 @@ TEST_F(NVFuserTest, FusionMagicSchedulerInstanceNormalization_CUDA) {
   FusionExecutorCache executor_cache(std::move(fusion));
 
   auto cg_outputs = executor_cache.runFusionWithInputs(aten_inputs);
+  auto cg_outputs_full = {at_run_mean, at_run_var, cg_outputs[0]};
 
   auto aten_outputs = at::instance_norm(
       at_input,
@@ -9146,9 +9147,9 @@ TEST_F(NVFuserTest, FusionMagicSchedulerInstanceNormalization_CUDA) {
       executor_cache.fusion(),
       cg_outputs,
       aten_inputs,
-      {at_run_mean,
-       at_run_var,
-       aten_outputs},
+      // TODO: can run_mean/run_var be checked here?
+      // fusion_outputs.size() == aten_outputs.size() && aten_outputs.size() == fusion->outputs().size() - output_alias_indices.size()
+      {aten_outputs},
       __LINE__,
       __FILE__,
       "");
