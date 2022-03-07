@@ -9111,11 +9111,18 @@ TEST_F(NVFuserTest, FusionMagicSchedulerInstanceNormalization_CUDA) {
   Double* eps = IrBuilder::create<Double>(kEps);
 
   auto result = instance_norm(
-      input, weight, bias, running_mean, running_var, kUseInputStats, momentum, eps);
+      input,
+      weight,
+      bias,
+      running_mean,
+      running_var,
+      kUseInputStats,
+      momentum,
+      eps);
 
   fusion->addOutput(result.output);
-  //fusion->addOutput(result.mean);
-  //fusion->addOutput(result.invstd);
+  // fusion->addOutput(result.mean);
+  // fusion->addOutput(result.invstd);
 
   auto options = at::TensorOptions().dtype(at::kFloat).device(at::kCUDA, 0);
   auto at_input = at::randn(input_shape, options);
@@ -9148,7 +9155,8 @@ TEST_F(NVFuserTest, FusionMagicSchedulerInstanceNormalization_CUDA) {
       cg_outputs,
       aten_inputs,
       // TODO: can run_mean/run_var be checked here?
-      // fusion_outputs.size() == aten_outputs.size() && aten_outputs.size() == fusion->outputs().size() - output_alias_indices.size()
+      // fusion_outputs.size() == aten_outputs.size() && aten_outputs.size() ==
+      // fusion->outputs().size() - output_alias_indices.size()
       {aten_outputs},
       __LINE__,
       __FILE__,
@@ -9184,7 +9192,15 @@ TEST_F(NVFuserTest, FusionMagicSchedulerInstanceNormalizationBackward_CUDA) {
   Double* momentum = IrBuilder::create<Double>(kMomentum);
   Double* eps = IrBuilder::create<Double>(kEps);
   auto result_forward = instance_norm(
-      input, weight, bias, nullptr, nullptr, kUseInputStats, momentum, eps, channels_last);
+      input,
+      weight,
+      bias,
+      nullptr,
+      nullptr,
+      kUseInputStats,
+      momentum,
+      eps,
+      channels_last);
   fusion_forward->addOutput(result_forward.output);
   fusion_forward->addOutput(result_forward.mean);
   fusion_forward->addOutput(result_forward.invstd);
@@ -9192,26 +9208,31 @@ TEST_F(NVFuserTest, FusionMagicSchedulerInstanceNormalizationBackward_CUDA) {
   FusionExecutorCache executor_cache_forward(std::move(fusion_forward));
 
   auto options = at::TensorOptions().dtype(at::kFloat).device(at::kCUDA, 0);
-  auto at_input = at::randn(input_shape, options).to(at::MemoryFormat::ChannelsLast3d).set_requires_grad(true);
-  auto at_input_nvfuser = at_input.clone().detach().permute({0, 2, 3, 4, 1}); 
+  auto at_input = at::randn(input_shape, options)
+                      .to(at::MemoryFormat::ChannelsLast3d)
+                      .set_requires_grad(true);
+  auto at_input_nvfuser = at_input.clone().detach().permute({0, 2, 3, 4, 1});
   auto at_weight = at::ones({input_shape[1]}, options).set_requires_grad(true);
   auto at_weight_nvfuser = at_weight.clone().detach();
   auto at_bias = at::zeros({input_shape[1]}, options).set_requires_grad(true);
   auto at_bias_nvfuser = at_bias.clone().detach();
-  std::vector<torch::jit::IValue> aten_inputs_forward = {at_input_nvfuser, at_weight_nvfuser, at_bias_nvfuser};
+  std::vector<torch::jit::IValue> aten_inputs_forward = {
+      at_input_nvfuser, at_weight_nvfuser, at_bias_nvfuser};
   // out, mean, invstd
-  auto outputs_forward = executor_cache_forward.runFusionWithInputs(aten_inputs_forward);
+  auto outputs_forward =
+      executor_cache_forward.runFusionWithInputs(aten_inputs_forward);
   auto at_out = at::instance_norm(
-     at_input,
-     c10::optional<at::Tensor>(at_weight),
-     c10::optional<at::Tensor>(at_bias),
-     c10::optional<at::Tensor>(c10::nullopt),
-     c10::optional<at::Tensor>(c10::nullopt),
-     kUseInputStats,
-     kMomentum,
-     kEps,
-     false);
-  auto at_grad = at::randn(input_shape, options).to(at::MemoryFormat::ChannelsLast3d);
+      at_input,
+      c10::optional<at::Tensor>(at_weight),
+      c10::optional<at::Tensor>(at_bias),
+      c10::optional<at::Tensor>(c10::nullopt),
+      c10::optional<at::Tensor>(c10::nullopt),
+      kUseInputStats,
+      kMomentum,
+      kEps,
+      false);
+  auto at_grad =
+      at::randn(input_shape, options).to(at::MemoryFormat::ChannelsLast3d);
   auto at_grad_nvfuser = at_grad.clone().detach().permute({0, 2, 3, 4, 1});
   at_out.backward(at_grad);
   auto fusion_backward = std::make_unique<Fusion>();
@@ -9233,23 +9254,39 @@ TEST_F(NVFuserTest, FusionMagicSchedulerInstanceNormalizationBackward_CUDA) {
   fusion_backward->addInput(save_invstd);
 
   auto result_backward = instance_norm_backward(
-      input, grad_output, weight, nullptr, nullptr, save_mean, save_invstd, kUseInputStats, eps, {true, true, true}, channels_last);
+      input,
+      grad_output,
+      weight,
+      nullptr,
+      nullptr,
+      save_mean,
+      save_invstd,
+      kUseInputStats,
+      eps,
+      {true, true, true},
+      channels_last);
 
   fusion_backward->addOutput(result_backward.grad_input);
-          fusion_backward->addOutput(result_backward.grad_weight);
-          fusion_backward->addOutput(result_backward.grad_bias);
+  fusion_backward->addOutput(result_backward.grad_weight);
+  fusion_backward->addOutput(result_backward.grad_bias);
 
   FusionExecutorCache executor_cache_backward(std::move(fusion_backward));
-  std::vector<torch::jit::IValue> aten_inputs_backward = {at_input_nvfuser, at_grad_nvfuser, at_weight_nvfuser, at::empty({}), at::empty({}), outputs_forward[1], outputs_forward[2]};
-  auto outputs_backward = executor_cache_backward.runFusionWithInputs(aten_inputs_backward);
+  std::vector<torch::jit::IValue> aten_inputs_backward = {
+      at_input_nvfuser,
+      at_grad_nvfuser,
+      at_weight_nvfuser,
+      at::empty({}),
+      at::empty({}),
+      outputs_forward[1],
+      outputs_forward[2]};
+  auto outputs_backward =
+      executor_cache_backward.runFusionWithInputs(aten_inputs_backward);
   outputs_backward[0] = outputs_backward[0].permute({0, 4, 1, 2, 3});
   testValidate(
       executor_cache_backward.fusion(),
       outputs_backward,
       aten_inputs_backward,
-      {at_input.grad(),
-       at_weight.grad(),
-       at_bias.grad()},
+      {at_input.grad(), at_weight.grad(), at_bias.grad()},
       __LINE__,
       __FILE__,
       "");

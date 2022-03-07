@@ -722,7 +722,8 @@ ForwardNormResult instance_norm(
       auto new_mean_channels_only = mul(new_mean_sum, reciprocal(B));
       if (running_mean->getDataType().value() == DataType::Half ||
           running_mean->getDataType().value() == DataType::BFloat16) {
-        new_mean_channels_only = castOp(running_mean->getDataType().value(), new_mean_channels_only);
+        new_mean_channels_only =
+            castOp(running_mean->getDataType().value(), new_mean_channels_only);
       }
       // fusion->addOutput(new_mean_channels_only);
       fusion->aliasOutputToInput(new_mean_channels_only, running_mean);
@@ -740,7 +741,8 @@ ForwardNormResult instance_norm(
       auto new_var_channels_only = mul(new_var_sum, reciprocal(B));
       if (running_var->getDataType().value() == DataType::Half ||
           running_var->getDataType().value() == DataType::BFloat16) {
-        new_var_channels_only = castOp(running_var->getDataType().value(), new_var_channels_only);
+        new_var_channels_only =
+            castOp(running_var->getDataType().value(), new_var_channels_only);
       }
       // fusion->addOutput(new_var_channels_only);
       fusion->aliasOutputToInput(new_var_channels_only, running_var);
@@ -818,7 +820,8 @@ BackwardNormResult instance_norm_backward(
 
   std::vector<int> reduction_axes;
   std::vector<bool> broadcast_mask(kNumberOfDims, false);
-  // weight has its own broadcast mask as it is broadcast for the batch unlike mean/var
+  // weight has its own broadcast mask as it is broadcast for the batch unlike
+  // mean/var
   std::vector<bool> weight_broadcast_mask(kNumberOfDims, false);
   Val* num_features = nullptr;
   for (const auto axis : c10::irange(kNumberOfDims)) {
@@ -828,12 +831,12 @@ BackwardNormResult instance_norm_backward(
         reduction_axes.push_back(axis);
         broadcast_mask[axis] = true;
         if (num_features == nullptr) {
-          num_features =
-            castOp(DataType::Double, input->domain()->domain()[axis]->extent());
+          num_features = castOp(
+              DataType::Double, input->domain()->domain()[axis]->extent());
         } else {
           num_features =
-            mul(num_features, input->domain()->domain()[axis]->extent());
-	}
+              mul(num_features, input->domain()->domain()[axis]->extent());
+        }
       }
     }
   }
@@ -867,8 +870,9 @@ BackwardNormResult instance_norm_backward(
         mul(broadcast(invstd, broadcast_mask),
             IrBuilder::create<Double>(input->container(), 1));
   } else {
-    grad_scale = mul(
-        broadcast(invstd, broadcast_mask), broadcast(weight, weight_broadcast_mask));
+    grad_scale =
+        mul(broadcast(invstd, broadcast_mask),
+            broadcast(weight, weight_broadcast_mask));
   }
 
   TensorView* grad_input = nullptr;
@@ -883,7 +887,8 @@ BackwardNormResult instance_norm_backward(
   TensorView* grad_weight_reduced = nullptr;
   if (output_mask[1]) {
     grad_weight = mul(dot_p, invstd);
-    // TODO: grad weight needs to be reduced across batch-dim but is this the most efficient place or can reduction happen earlier?
+    // TODO: grad weight needs to be reduced across batch-dim but is this the
+    // most efficient place or can reduction happen earlier?
     grad_weight_reduced = sum(grad_weight, {0});
   }
 
