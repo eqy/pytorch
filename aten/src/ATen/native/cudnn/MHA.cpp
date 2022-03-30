@@ -31,6 +31,36 @@ namespace at { namespace native {
 
 namespace {
 // BEGIN COPY-PASTE FROM CUDNN-FRONTEND SAMPLE
+int checkCudaError(cudaError_t code, const char* expr, const char* file, int line) {
+    if (code) {
+        printf("CUDA error at %s:%d, code=%d (%s) in '%s'", file, line, (int)code, cudaGetErrorString(code), expr);
+        return 1;
+    }
+    return 0;
+}
+
+int checkCudnnError(cudnnStatus_t code, const char* expr, const char* file, int line) {
+    if (code) {
+        printf("CUDNN error at %s:%d, code=%d (%s) in '%s'\n", file, line, (int)code, cudnnGetErrorString(code), expr);
+        return 1;
+    }
+    return 0;
+}
+
+#define REQUIRE( ... )       (void)(0)
+
+#define checkCudaErr(...)                                                        \
+    do {                                                                         \
+        int err = checkCudaError(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__); \
+        REQUIRE(err == 0);                                                       \
+    } while (0)
+
+#define checkCudnnErr(...)                                                        \
+    do {                                                                          \
+        int err = checkCudnnError(__VA_ARGS__, #__VA_ARGS__, __FILE__, __LINE__); \
+        REQUIRE(err == 0);                                                        \
+    } while (0)
+
 
 using namespace cudnn_frontend;
 
@@ -929,13 +959,41 @@ multiHeadAttention(const int64_t inputSize,
 // END COPY-PASTE FRO CUDNN-FRONTEND SAMPLE
 } // namespace
 
-Tensor cudnn_mha(const long head_dim, const long num_heads, const Tensor& self, const Tensor& qkv_weight, const Tensor& out_weight, const Tensor& qkv_bias, const Tensor& out_bias) {
-	size_t input_size = self.size(2); // L, N, E
-	size_t batch_size = self.size(1);
-    size_t output_size = out_weight.size(2); // L, N, E
+Tensor cudnn_mha(const long head_size, const long num_heads, const Tensor& self, const Tensor& qkv_weight, const Tensor& out_weight, const Tensor& qkv_bias, const Tensor& out_bias) {
+	size_t inputSize = self.size(2); // L, N, E
+	size_t seqLength = self.size(0);
+	size_t batchSize = self.size(1);
+    size_t outputSize = out_weight.size(0); // L, N, E
+    /*	
+	size_t inputSize = self.size(2); // N, L, E
+	size_t seqLength = self.size(1);
+	size_t batchSize = self.size(0);
+    size_t outputSize = out_weight.size(0);
+	*/	
     //size_t head_size = 0
     std::cout << "MHA CALLED" << std::endl;
-    return self;
+	auto dataType = CUDNN_DATA_FLOAT;
+    if (self.scalar_type() == at::kHalf) {
+	  dataType = CUDNN_DATA_HALF;
+	} else if (self.scalar_type() != at::kFloat) {
+      CHECK(false);	
+	}
+	Tensor out = at::empty({seqLength, batchSize, outputSize}, self.options());
+    //Tensor out = at::empty({batchSize, seqLength, outputSize}, self.options());
+	multiHeadAttention(inputSize,
+                       head_size,
+                       seqLength,
+                       num_heads,
+                       batchSize,
+                       outputSize,
+                       dataType,
+                       self.data_ptr(),
+                       qkv_weight.data_ptr(),
+                       out_weight.data_ptr(),
+                       qkv_bias.data_ptr(),
+                       out_bias.data_ptr(),
+                       out.data_ptr());
+    return out;
   }
 
 
