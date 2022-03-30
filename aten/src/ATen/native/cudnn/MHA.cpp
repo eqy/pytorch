@@ -36,30 +36,34 @@ using namespace cudnn_frontend;
 
 ExecutionPlan_v8
 get_plan_from_heuristics(OperationGraph_v8 &opGraph, cudnnHandle_t handle) {
-  auto heuristics = cudnn_frontend::EngineHeuristicsBuilder()
-                      .setOperationGraph(opGraph)
-                      .setHeurMode(CUDNN_HEUR_MODE_INSTANT)
-                      .build();
-  auto& engine_config = heuristics.getEngineConfig(heuristics.getEngineConfigCount());
-  auto plan_builder = [&]() -> cudnn_frontend::ExecutionPlan {
-    for (auto &ecfg : engine_config) {
-      try {
-	    auto plan = cudnn_frontend::ExecutionPlanBuilder()
-		  .setHandle(handle)
-          .setEngineConfig(ecfg, opGraph.getTag())
-          .build();
-		return plan;
-      } catch (cudnn_frontend::cudnnException &e) {
-	    continue;
-      }
-    }
-    return cudnn_frontend::ExecutionPlanBuilder()
-      .setHandle(handle)
-      .setEngineConfig(engine_config[0], opGraph.getTag())
-      .build();
-  };
-  return std::move(plan_builder());
+    auto heuristics = cudnn_frontend::EngineHeuristicsBuilder()
+                          .setOperationGraph(opGraph)
+                          .setHeurMode(CUDNN_HEUR_MODE_INSTANT)
+                          .build();
+
+    auto& engine_config = heuristics.getEngineConfig(heuristics.getEngineConfigCount());
+
+    auto plan_builder = [&]() -> cudnn_frontend::ExecutionPlan {
+        for (auto &ecfg : engine_config) {
+            try {
+                auto plan = cudnn_frontend::ExecutionPlanBuilder()
+                                .setHandle(handle)
+                                .setEngineConfig(ecfg, opGraph.getTag())
+                                .build();
+                return plan;
+            } catch (cudnn_frontend::cudnnException &e) {
+                continue;
+            }
+        }
+        return cudnn_frontend::ExecutionPlanBuilder()
+                   .setHandle(handle)
+                   .setEngineConfig(engine_config[0], opGraph.getTag())
+                   .build();
+    };
+
+    return std::move(plan_builder());
 }
+
 
 class MHAParams {
    public:
@@ -215,7 +219,6 @@ class MHA_intputProjLayer {
 
     MHA_intputProjLayer(cudnnHandle_t handle, MHAParams &mhaParams) {
         const int64_t inputSize  = mhaParams.inputSize;
-        const int64_t outputSize = mhaParams.inputSize;
         const int64_t headSize   = mhaParams.headSize;
         const int64_t numHeads   = mhaParams.numHeads;
         const int64_t seqLength  = mhaParams.seqLength;
@@ -269,7 +272,7 @@ class MHA_intputProjLayer {
                                           .setId('a')
                                           .setAlignment(16)
                                           .setVirtual()
-                                          .setDataType(CUDNN_DATA_FLOAT)
+                                          .setDataType(dataType)
                                           .build();
 
         auto oMatrixTensor = cudnn_frontend::TensorBuilder()
@@ -324,9 +327,9 @@ class MHA_intputProjLayer {
             void const *devPtrBias,
             void *devPtrQKV) {
         void* data_ptrs[] = {const_cast<void*>(devPtrIn),
-                              const_cast<void*>(devPtrWeight),
-                              const_cast<void*>(devPtrBias),
-                              devPtrQKV};
+                             const_cast<void*>(devPtrWeight),
+                             const_cast<void*>(devPtrBias),
+                             devPtrQKV};
         int64_t uids[] = {'i', 'W', 'b', 'o'};
 
         auto variantPack = cudnn_frontend::VariantPackBuilder()
@@ -356,7 +359,7 @@ class MHA_outputProjLayer {
 
     MHA_outputProjLayer(cudnnHandle_t handle, MHAParams &mhaParams) {
         const int64_t inputSize  = mhaParams.inputSize;
-        const int64_t outputSize = mhaParams.inputSize;
+        const int64_t outputSize = mhaParams.outputSize;
         const int64_t headSize   = mhaParams.headSize;
         const int64_t numHeads   = mhaParams.numHeads;
         const int64_t seqLength  = mhaParams.seqLength;
@@ -505,10 +508,10 @@ class MHA_attentionLayer {
 
         const cudnnDataType_t dataType = mhaParams.dataType;
         const cudnnDataType_t mathPrec = mhaParams.mathPrec;
-#if (CUDNN_VERSION >= 8310)
+#if (CUDNN_VERSION >= 8303)
         {
             // Softmax scaler
-            const float softmaxScaler = static_cast<float>(1.0 / sqrt(static_cast<double>(headSize)));
+            const float softmaxScaler = static_cast<float>(1.0 / std::sqrt(static_cast<double>(headSize)));
 
             // Create tensor descriptor for embedding Q
             const int64_t qDim[3]    = {batchSize * numHeads, headSize, seqLength};
@@ -551,8 +554,7 @@ class MHA_attentionLayer {
                                      .setStrides(3, sStride)
                                      .setId('z')
                                      .setAlignment(16)
-                                     .setVirtual()
-                                     .setDataType(CUDNN_DATA_FLOAT)
+                                     .setDataType(dataType)
                                      .build();
             // Create tensor descriptor for E = exp(Z)
             auto eMatrixTensor = cudnn_frontend::TensorBuilder()
@@ -560,7 +562,8 @@ class MHA_attentionLayer {
                                      .setStrides(3, sStride)
                                      .setId('e')
                                      .setAlignment(16)
-                                     .setDataType(dataType)
+                                     .setVirtual()
+                                     .setDataType(CUDNN_DATA_FLOAT)
                                      .build();
             // Create tensor descriptor for softmaxScaler
             const int64_t scalerDim[3]    = {1, 1, 1};
@@ -656,13 +659,33 @@ class MHA_attentionLayer {
             const int64_t eDim[3]    = {batchSize * numHeads, seqLength, seqLength};
             const int64_t eStride[3] = {seqLength * seqLength, 1, seqLength};
 
+            auto sMatrixTensor = cudnn_frontend::TensorBuilder()
+                                     .setDim(3, eDim)
+                                     .setStrides(3, eStride)
+                                     .setId('s')
+                                     .setAlignment(16)
+                                     .setDataType(dataType)
+                                     .build();
+
             auto eMatrixTensor = cudnn_frontend::TensorBuilder()
                                      .setDim(3, eDim)
                                      .setStrides(3, eStride)
                                      .setId('e')
                                      .setAlignment(16)
+                                     .setVirtual()
+                                     .setDataType(CUDNN_DATA_FLOAT)
+                                     .build();
+
+            // Create tensor descriptor for P = Y / R
+            auto pMatrixTensor = cudnn_frontend::TensorBuilder()
+                                     .setDim(3, eDim)
+                                     .setStrides(3, eStride)
+                                     .setId('p')
+                                     .setAlignment(16)
+                                     .setVirtual()
                                      .setDataType(dataType)
                                      .build();
+
             // Create tensor descriptor for Y = E^T * V^T
             const int64_t yDim[3]    = {batchSize * numHeads, seqLength, headSize};
             const int64_t yStride[3] = {headSize, headSize * numHeads * batchSize, 1};
@@ -671,15 +694,6 @@ class MHA_attentionLayer {
                                      .setDim(3, yDim)
                                      .setStrides(3, yStride)
                                      .setId('y')
-                                     .setAlignment(16)
-                                     .setVirtual()
-                                     .setDataType(CUDNN_DATA_FLOAT)
-                                     .build();
-            // Create tensor descriptor for P = Y / R
-            auto pMatrixTensor = cudnn_frontend::TensorBuilder()
-                                     .setDim(3, yDim)
-                                     .setStrides(3, yStride)
-                                     .setId('p')
                                      .setAlignment(16)
                                      .setDataType(dataType)
                                      .build();
@@ -695,30 +709,42 @@ class MHA_attentionLayer {
                                .setAlignment(16)
                                .setDataType(CUDNN_DATA_FLOAT)
                                .build();
-            // Define the matmul descriptor for Y = E * V^T
-            auto matmulDesc = cudnn_frontend::MatMulDescBuilder().setMathPrecision(CUDNN_DATA_FLOAT).build();
+            // Define the activation descriptor
+            auto expDesc = cudnn_frontend::PointWiseDescBuilder()
+                               .setMode(CUDNN_POINTWISE_EXP)
+                               .setMathPrecision(CUDNN_DATA_FLOAT)
+                               .build();
             // Define the row-broadcast descriptor for P = Y / R
             auto rowBroadcastDesc = cudnn_frontend::PointWiseDescBuilder()
                                         .setMode(CUDNN_POINTWISE_DIV)
                                         .setMathPrecision(CUDNN_DATA_FLOAT)
                                         .build();
-            // Create a matmul Node for Y = E * V^T
-            auto matmulOp = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_MATMUL_DESCRIPTOR)
-                                .setaMatDesc(eMatrixTensor)
-                                .setbMatDesc(vMatrixTensor)
-                                .setcMatDesc(yMatrixTensor)
-                                .setmatmulDesc(matmulDesc)
-                                .build();
+            // Define the matmul descriptor for Y = E * V^T
+            auto matmulDesc = cudnn_frontend::MatMulDescBuilder().setMathPrecision(CUDNN_DATA_FLOAT).build();
+
+            // Create a EXP Node for E = exp(S')
+            auto expOp = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
+                             .setxDesc(sMatrixTensor)
+                             .setyDesc(eMatrixTensor)
+                             .setpwDesc(expDesc)
+                             .build();
             // Create a row-broadcast Node for P = Y / R
             auto rowBroadcastOp = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR)
-                                       .setxDesc(matmulOp.getOutputTensor())
+                                       .setxDesc(expOp.getOutputTensor())
                                        .setbDesc(rTensor)
                                        .setyDesc(pMatrixTensor)
                                        .setpwDesc(rowBroadcastDesc)
                                        .build();
+            // Create a matmul Node for Y = E * V^T
+            auto matmulOp = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_MATMUL_DESCRIPTOR)
+                                .setaMatDesc(rowBroadcastOp.getOutputTensor())
+                                .setbMatDesc(vMatrixTensor)
+                                .setcMatDesc(yMatrixTensor)
+                                .setmatmulDesc(matmulDesc)
+                                .build();
 
             // Create an Operation Graphs
-            std::array<cudnn_frontend::Operation const*, 2> ops = {&matmulOp, &rowBroadcastOp};
+            std::array<cudnn_frontend::Operation const*, 3> ops = {&expOp, &rowBroadcastOp, &matmulOp};
 
             auto opGraph = cudnn_frontend::OperationGraphBuilder()
                                .setHandle(handle)
@@ -748,13 +774,13 @@ class MHA_attentionLayer {
                               const_cast<void *>(devPtrE),
                               devPtrR,
                               const_cast<void *>(devPtrScaler)};
-        int64_t uids0[] = {'q', 'k', 'e', 'c', 'm'};
+        int64_t uids0[] = {'q', 'k', 'z', 'c', 'm'};
 
         void* data_ptrs1[] = {devPtrE,
                               const_cast<void *>(devPtrV),
                               devPtrR,
                               devPtrX};
-        int64_t uids1[] = {'e', 'v', 'r', 'p'};
+        int64_t uids1[] = {'s', 'v', 'r', 'y'};
 
         auto variantPack0 = cudnn_frontend::VariantPackBuilder()
                                 .setDataPointers(5, data_ptrs0)
@@ -796,7 +822,7 @@ multiHeadAttention(const int64_t inputSize,
                    void const *devPtrQKVBias,
                    void const *devPtrOBias,
                    void *devPtrOut) {
-#if (CUDNN_VERSION >= 8310)
+#if (CUDNN_VERSION >= 8301)
     cudnnHandle_t handle_;
 
     /*
@@ -825,7 +851,7 @@ multiHeadAttention(const int64_t inputSize,
         cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
 
         // Softmax scaler
-        const float softmaxScaler   = static_cast<float>(1.0 / sqrt(static_cast<double>(headSize)));
+        const float softmaxScaler   = static_cast<float>(1.0 / std::sqrt(static_cast<double>(headSize)));
         const int64_t embeddingSize = batchSize * numHeads * headSize * seqLength;
 
         void *devPtrQKV    = nullptr;
@@ -885,6 +911,7 @@ multiHeadAttention(const int64_t inputSize,
         status = outputProjLayer.execute(handle_, devPtrX, devPtrOWeight, devPtrOBias, devPtrOut);
         cudnn_frontend::throw_if([status]() { return (status != CUDNN_STATUS_SUCCESS); }, "output layer execution error", status);
 
+        checkCudaErr(cudaDeviceSynchronize());
         cudaFree(devPtrQKV);
         cudaFree(devPtrE);
         cudaFree(devPtrR);
@@ -897,6 +924,7 @@ multiHeadAttention(const int64_t inputSize,
     }
 #endif
 }
+
 
 // END COPY-PASTE FRO CUDNN-FRONTEND SAMPLE
 } // namespace
