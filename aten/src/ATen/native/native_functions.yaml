@@ -1467,7 +1467,7 @@
   dispatch:
     CUDA: cudnn_convolution_add_relu
 
-- func: cudnn_mha(int embed_dim, int num_heads, Tensor self, Tensor qkv_weight, Tensor out_weight, Tensor qkv_bias, Tensor out_bias) -> Tensor
+- func: cudnn_mha(int input_size, int seq_length, int batch_size, int output_size, int head_size, int num_heads, Tensor self, Tensor qkv_weight, Tensor out_weight, Tensor qkv_bias, Tensor out_bias) -> Tensor
   dispatch:
     CUDA: cudnn_mha
 

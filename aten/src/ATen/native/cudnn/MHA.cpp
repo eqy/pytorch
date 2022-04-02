@@ -959,11 +959,11 @@ multiHeadAttention(const int64_t inputSize,
 // END COPY-PASTE FRO CUDNN-FRONTEND SAMPLE
 } // namespace
 
-Tensor cudnn_mha(const long head_size, const long num_heads, const Tensor& self, const Tensor& qkv_weight, const Tensor& out_weight, const Tensor& qkv_bias, const Tensor& out_bias) {
-	size_t inputSize = self.size(2); // L, N, E
-	size_t seqLength = self.size(0);
-	size_t batchSize = self.size(1);
-    size_t outputSize = out_weight.size(0); // L, N, E
+Tensor cudnn_mha(const long inputSize, const long seqLength, const long batchSize, const long outputSize, const long head_size, const long num_heads, const Tensor& self, const Tensor& qkv_weight, const Tensor& out_weight, const Tensor& qkv_bias, const Tensor& out_bias) {
+	//size_t inputSize = self.size(2); // L, N, E
+	//size_t seqLength = self.size(0);
+	//size_t batchSize = self.size(1);
+    //size_t outputSize = out_weight.size(0); // L, N, E
     /*	
 	size_t inputSize = self.size(2); // N, L, E
 	size_t seqLength = self.size(1);
