@@ -1,10 +1,14 @@
 #pragma once
 #include <ATen/core/Tensor.h>
+#include <ATen/cuda/CUDAConfig.h>  // for the definition of AT_CUDNN_ENABLED
 #include <ATen/detail/CUDAHooksInterface.h>
 #include <ATen/native/DispatchStub.h>
 #include <c10/util/env.h>
 #include <c10/util/irange.h>
 
+#ifdef USE_CUDA
+#include <ATen/cuda/CUDAContext.h> // for getCurrentDeviceProperties
+#endif
 namespace at { namespace native {
 
 using conv_depthwise2d_backward_fn = std::tuple<at::Tensor,at::Tensor>(*)(
@@ -69,6 +73,15 @@ static inline bool cudnnv8_enabled_check_debug() {
     cudnnv8_debugcount++;
   }
   return cudnnv8_flag == 1;
+}
+
+inline bool cudnnv8_has_bfloat16() {
+  #ifdef USE_CUDA
+    cudaDeviceProp* prop = at::cuda::getCurrentDeviceProperties();
+    return prop->major >= 8;
+  #else
+    return false;
+  #endif
 }
 
 static inline bool cudnnv8_use_heur_mode_b() {
