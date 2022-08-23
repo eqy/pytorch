@@ -4,6 +4,8 @@
 
 #include <ATen/native/cudnn/ConvShared.h>
 
+#include <iostream>
+
 // NOTE [cuDNN API version]
 //
 // ConvPlaceholders.cpp contains placeholder implementation of cudnn
@@ -442,6 +444,10 @@ Tensor cudnn_convolution_backward_weight(
     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups,
     bool benchmark, bool deterministic, bool allow_tf32)
 {
+  if (c10::cuda::current_device() == 0) {
+    std::cout << "CUDNN BACKWARD WEIGHT, GRAD SHAPE " << weight_size << std::endl;
+  }
+
   auto layout = at::MemoryFormat::Contiguous;
   if (cudnn_conv_use_channels_last(input_t, grad_output_t)){
     layout = (input_t.ndimension() == 5) ? at::MemoryFormat::ChannelsLast3d : at::MemoryFormat::ChannelsLast;
