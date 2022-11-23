@@ -33,6 +33,8 @@
 #include <ATen/ops/empty.h>
 #endif
 
+#include <iostream>
+
 namespace at { namespace native {
 
 namespace {
@@ -134,6 +136,7 @@ template <typename T, typename KeyType>
 struct BenchmarkCache {
 std::mutex mutex;
 std::unordered_map<KeyType, cudnn_frontend::ExecutionPlan, ParamsHash<KeyType>, ParamsEqual<KeyType>> engine_cache;
+std::unordered_map<KeyType, int, ParamsHash<KeyType>, ParamsEqual<KeyType>> engine_cache_fail_count;
 
 // TODO: is this thread safe if cache is updated? is pointer stale?
 cudnn_frontend::ExecutionPlan* find(const KeyType& key) {
@@ -149,6 +152,25 @@ cudnn_frontend::ExecutionPlan* find(const KeyType& key) {
 void emplace(const KeyType& key, T& results) {
   std::lock_guard<std::mutex> guard(mutex);
   engine_cache.emplace(key, std::move(results));
+}
+
+unsigned int get_failed_count(const KeyType& key) {
+  std::lock_guard<std::mutex> guard(mutex);
+  auto it = engine_cache_fail_count.find(key);
+  if (it == engine_cache_fail_count.end()) {
+    return 0;
+  }
+  return it->second;
+}
+
+void inc_failed_count(const KeyType& key) {
+  std::lock_guard<std::mutex> guard(mutex);
+  auto it = engine_cache_fail_count.find(key);
+  if (it == engine_cache_fail_count.end()) {
+    engine_cache_fail_count[key] = 1;
+  } else {
+    engine_cache_fail_count[key] += 1;
+  }
 }
 
 };
@@ -168,6 +190,7 @@ void setCacheKey(CacheKey& key, const cudnnBackendDescriptorType_t operation, co
   key.x_alignment = getAlignment(x);
   key.y_alignment = getAlignment(y);
   key.w_alignment = getAlignment(w);
+  std::cout << "CACHE " << operation << " " << x.sizes() << " " << y.sizes() << " " << w.sizes() << " " << x.scalar_type() << " " << y.scalar_type() << " " << w.scalar_type() << " " << stride << " " << padding << " " << dilation << " " << groups << std::endl;
 }
 
 void setCacheKeyFused(CacheKeyFused& key, const Tensor& y, const Tensor& x, const Tensor& w, const Tensor& z, const Tensor& b, const float alpha, const IntArrayRef padding, const IntArrayRef stride, const IntArrayRef dilation, int64_t groups, bool deterministic, bool allow_tf32) {
@@ -193,7 +216,9 @@ void run_conv_plan(cudnnHandle_t handle, const Tensor& x, const Tensor& y, const
       .setDataPointers(3, data_ptrs)
       .setUids(3, uids)
       .build();
+  std::cout << "start conv" << std::endl;
   AT_CUDNN_CHECK(cudnnBackendExecute(handle, plan.get_raw_desc(), variantPack.get_raw_desc()));
+  std::cout << "finished conv!" << std::endl;
 }
 
 void run_conv_plan_fused(cudnnHandle_t handle, const Tensor& x, const Tensor& y, const Tensor& w, const Tensor& z, const Tensor& b, const cudnn_frontend::ExecutionPlan& plan) {
@@ -433,6 +458,7 @@ auto get_plans_from_find_fused(const cudnnHandle_t handle,
 // We only get configs from this stage to avoid building unnecessary plans that are never executed
 auto get_configs_from_heuristics(const cudnnHandle_t handle, const cudnnBackendDescriptorType_t desc, std::string& opgraph_tag, const Tensor& x, const Tensor& y, const Tensor& w, const CacheKey& key, const IntArrayRef padding, const IntArrayRef stride, const IntArrayRef dilation, const bool deterministic, const bool allow_tf32) {
   auto opGraph = build_opgraph(handle, desc, x, y, w, key, padding, stride, dilation);
+  std::cout << "feature vector" << opGraph.getFeatureVector() << std::endl;
   opgraph_tag = opGraph.getTag();
   auto heuristic_mode = at::native::cudnnv8_use_heur_mode_b() ? CUDNN_HEUR_MODE_B : CUDNN_HEUR_MODE_INSTANT;
   auto sources = get_generator_sources(desc, x, deterministic, allow_tf32, heuristic_mode);
@@ -482,7 +508,14 @@ void try_plans_fused(cudnn_frontend::executionPlans_t& plans, const CacheKeyFuse
 }
 
 void try_configs(cudnn_frontend::EngineConfigList& configs, const std::string& opgraph_tag, const CacheKey& key, const cudnnHandle_t handle, const Tensor& x, const Tensor& y, const Tensor& w) {
+  int idx = 0;
   for (auto & config : configs) {
+    if (idx < benchmark_cache.get_failed_count(key)) {
+      std::cout << " skipping config due to fail " << std::endl;
+      idx++;
+      continue;
+    }
+
     try {
       auto plan = cudnn_frontend::ExecutionPlanBuilder()
                     .setHandle(handle)
@@ -533,12 +566,23 @@ void run_single_conv(const cudnnBackendDescriptorType_t operation,
   // TODO: is this thread safe if cache is updated? is pointer stale?
   auto search = benchmark_cache.find(key);
   if (search) {
+    std::string opgraph_tag;
+    get_configs_from_heuristics(handle, operation,
+				   opgraph_tag,
+				   x, y, w, key,
+				   padding, stride, dilation,
+				   deterministic, allow_tf32);
+
     try {
       run_conv_plan(handle, x, y, w, *search);
       return;
     } catch(c10::OutOfMemoryError &e) {
       cudaGetLastError(); // clear CUDA error
-    }
+    } /*catch (CuDNNError &e) {
+      benchmark_cache.inc_failed_count(key);
+      std::cout << handle << std::endl;
+      std::cout << "A previously cached cuDNN Execution Plan failed. (" << benchmark_cache.get_failed_count(key) << ")" << std::endl;
+    }*/
   }
   if (!benchmark) {
     std::string opgraph_tag; // extra data needed for errata filter
