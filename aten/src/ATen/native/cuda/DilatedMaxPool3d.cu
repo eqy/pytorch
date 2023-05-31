@@ -23,6 +23,14 @@
 #include <ATen/ops/max_pool3d_with_indices_backward_native.h>
 #endif
 
+#include <ATen/cuda/CUDAConfig.h>  // for the definition of AT_CUDNN_ENABLED
+#if AT_CUDNN_ENABLED()
+#include <ATen/native/cudnn/Macros.h>
+#if HAS_CUDNN_V8()
+#include <ATen/native/cudnn/Pooling.h>
+#endif
+#endif
+
 namespace at::native {
 namespace {
 
@@ -555,15 +563,31 @@ std::tuple<Tensor&, Tensor&> max_pool3d_with_indices_out_cuda(const Tensor& inpu
   Tensor& output,
   Tensor& indices)
 {
-  max_pool3d_with_indices_out_cuda_template(
-    output,
-    indices,
-    input,
-    kernel_size,
-    stride,
-    padding,
-    dilation,
-    ceil_mode);
+  const int dilation_dim = dilation.size();
+  bool dilation_ok = true;
+  for (int i = 0; i < dilation_dim; i++) {
+    if (dilation[i] != 1) {
+      dilation_ok = false;
+    }
+  }
+  if (dilation_ok && use_cudnn_v8_jit_pooling()) {
+    return cudnn_pooling_with_indices(
+      input,
+      kernel_size,
+      stride,
+      padding,
+      dilation);
+  } else {
+    max_pool3d_with_indices_out_cuda_template(
+      output,
+      indices,
+      input,
+      kernel_size,
+      stride,
+      padding,
+      dilation,
+      ceil_mode);
+  }
   return std::tuple<Tensor&, Tensor&>(output, indices);
 }
 
