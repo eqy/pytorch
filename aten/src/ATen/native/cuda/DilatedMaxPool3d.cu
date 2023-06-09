@@ -386,6 +386,25 @@ void max_pool3d_with_indices_out_cuda_template(
     return;
   }
 
+  const int dilation_dim = dilation.size();
+  bool cudnn_dilation_ok = true;
+  for (int i = 0; i < dilation_dim; i++) {
+    if (dilation[i] != 1) {
+      cudnn_dilation_ok = false;
+    }
+  }
+  if (cudnn_dilation_ok && use_cudnn_v8_jit_pooling()) {
+    cudnn_max_pooling_with_indices(
+      input,
+      kernel_size,
+      stride,
+      padding,
+      dilation,
+      output,
+      indices);
+     return;
+  };
+
   Tensor work_input;
   Tensor work_output = output;
   if (!channels_last) {
@@ -563,31 +582,16 @@ std::tuple<Tensor&, Tensor&> max_pool3d_with_indices_out_cuda(const Tensor& inpu
   Tensor& output,
   Tensor& indices)
 {
-  const int dilation_dim = dilation.size();
-  bool dilation_ok = true;
-  for (int i = 0; i < dilation_dim; i++) {
-    if (dilation[i] != 1) {
-      dilation_ok = false;
-    }
-  }
-  if (dilation_ok && use_cudnn_v8_jit_pooling()) {
-    return cudnn_pooling_with_indices(
-      input,
-      kernel_size,
-      stride,
-      padding,
-      dilation);
-  } else {
-    max_pool3d_with_indices_out_cuda_template(
-      output,
-      indices,
-      input,
-      kernel_size,
-      stride,
-      padding,
-      dilation,
-      ceil_mode);
-  }
+  max_pool3d_with_indices_out_cuda_template(
+  output,
+  indices,
+  input,
+  kernel_size,
+  stride,
+  padding,
+  dilation,
+  ceil_mode);
+  
   return std::tuple<Tensor&, Tensor&>(output, indices);
 }
 

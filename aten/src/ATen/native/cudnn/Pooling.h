@@ -23,8 +23,5 @@ static bool use_cudnn_v8_jit_pooling() {
 }
 
 void setPoolingParams(PoolingParams& params, Tensor& input, IntArrayRef kernel, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation);
-
-std::tuple<Tensor, Tensor> cudnn_pooling_with_indices(
-  const Tensor& input, IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation);
-
+void cudnn_max_pooling_with_indices(const Tensor& input, IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation, Tensor& output, Tensor& indices);
 }}

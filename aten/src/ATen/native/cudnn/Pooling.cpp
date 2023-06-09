@@ -70,15 +70,11 @@ void setPoolingParams(PoolingParams& params, Tensor& input, IntArrayRef kernel, 
   params.memory_format = input.suggest_memory_format();
 }
 
-std::tuple<Tensor, Tensor> cudnn_pooling_with_indices(const Tensor& input, IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
-  Tensor output;
-  Tensor indices; 
-
+void cudnn_max_pooling_with_indices(const Tensor& input,  IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation, Tensor& output, Tensor& indices) {
   int dims = dilation.size();
   for (int i = 0; i < dims; i++) {
     TORCH_INTERNAL_ASSERT(dilation[i] == 1, "cuDNN pooling does not currently support dilation != 1");
   }
-  return std::tuple<Tensor, Tensor>(output, indices);
 }
 
 }}
