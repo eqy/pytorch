@@ -13,6 +13,7 @@ C10_DIAGNOSTIC_POP()
 
 #include <ATen/native/utils/ParamsHash.h>
 #include <ATen/native/cudnn/Pooling.h>
+#include <aten/src/ATen/cudnn/Handle.h>
 
 
 namespace at { namespace native {
@@ -44,7 +45,7 @@ void update(const KeyType& key, T& results) {
 
 JITCache<cudnn_frontend::ExecutionPlan, PoolingParams> jit_cache;
 
-void setPoolingParams(PoolingParams& params, Tensor& input, IntArrayRef kernel, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
+void setPoolingParams(PoolingParams& params, const Tensor& input, IntArrayRef kernel, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
   memset(&params, 0, sizeof(params));
   params.device_id = at::cuda::current_device();
   params.dataType = getCudnnDataType(input);
@@ -70,11 +71,90 @@ void setPoolingParams(PoolingParams& params, Tensor& input, IntArrayRef kernel, 
   params.memory_format = input.suggest_memory_format();
 }
 
+uint8_t getAlignment(const Tensor &t) {
+  // alignment are in bytes
+  uint8_t alignment = 1;
+  uintptr_t address = reinterpret_cast<uintptr_t>(t.data_ptr());
+  for (; alignment < 32; alignment *= 2) {
+    if (address % (alignment * 2)) {
+      return alignment;
+    }
+  }
+  return alignment;
+}
+
+bool
+allowAll(cudnnBackendDescriptor_t engine_config) {
+    (void)engine_config;
+    return false;
+}
+
+
 void cudnn_max_pooling_with_indices(const Tensor& input,  IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation, Tensor& output, Tensor& indices) {
   int dims = dilation.size();
   for (int i = 0; i < dims; i++) {
     TORCH_INTERNAL_ASSERT(dilation[i] == 1, "cuDNN pooling does not currently support dilation != 1");
   }
-}
+  PoolingParams params;
+  setPoolingParams(params, input, kernel_size, stride, padding, dilation);
+  cudnnHandle_t handle = getCudnnHandle();
+  auto result = jit_cache.find(params);
+  if (result) {
 
-}}
+  } else { 
+    auto xTensor = cudnn_frontend::TensorBuilder()
+                     .setDim(input.sizes().size(), input.sizes().data())
+                     .setStrides(input.strides().size(), input.strides().data())
+                     .setId('x')
+                     .setAlignment(getAlignment(input))
+                     .setDataType(getCudnnDataType(input))
+                     .build();
+    auto yTensor = cudnn_frontend::TensorBuilder()
+                     .setDim(output.sizes().size(), output.sizes().data())
+                     .setStrides(output.strides().size(), output.strides().data())
+                     .setId('y')
+                     .setAlignment(getAlignment(output))
+                     .setDataType(getCudnnDataType(output))
+                     .build();
+    auto idxTensor = cudnn_frontend::TensorBuilder()
+                       .setDim(indices.sizes().size(), indices.sizes().data())
+                       .setStrides(indices.strides().size(), indices.strides().data())
+                       .setId('i') 
+                       .setAlignment(getAlignment(indices))
+                       .setDataType(getCudnnDataType(indices))
+                       .build();
+
+    const uint64_t spatial_dim = stride.size();
+     // Define the resample descriptor
+    auto poolDesc = cudnn_frontend::ResampleDescBuilder_v8()
+                        .setComputeType(CUDNN_DATA_FLOAT)
+                        //.setNanPropagation(nanOpt)
+                        .setResampleMode(CUDNN_RESAMPLE_MAXPOOL)
+                        .setPaddingMode(CUDNN_NEG_INF_PAD)
+                        .setSpatialDim(spatial_dim, kernel_size.data())
+                        .setSpatialStride(spatial_dim, stride.data())
+                        .setPrePadding(spatial_dim, padding)
+                        .setPostPadding(spatial_dim, padding)
+                        .build(); 
+    auto pool_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_RESAMPLE_FWD_DESCRIPTOR)
+                       .setxDesc(xTensor)
+                       .setyDesc(yTensor)
+                       .setidxDesc(idxTensor)
+                       .setResampleDesc(poolDesc)
+                       .build();
+    std::array<cudnn_frontend::Operation const*, 1> ops = {&pool_op};
+    auto opGraph = cudnn_frontend::OperationGraphBuilder()
+                   .setHandle(handle)
+                   .setOperationGraph(ops.size(), ops.data())
+                   .build();
+    cudnn_frontend::EngineConfigList filtered_configs;
+    auto statuses = cudnn_frontend::get_heuristics_list<2>({"heuristics_instant", "heuristics_fallback"}, opGraph, allowAll, filtered_configs, true);
+    auto plan =
+    cudnn_frontend::ExecutionPlanBuilder().setHandle(handle).setEngineConfig(filtered_configs[0], opGraph.getTag()).build();
+
+
+    
+  } 
+}   
+    
+}}  
