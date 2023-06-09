@@ -15,6 +15,7 @@ C10_DIAGNOSTIC_POP()
 #include <ATen/native/cudnn/Pooling.h>
 #include <aten/src/ATen/cudnn/Handle.h>
 
+#include <c10/cuda/CUDACachingAllocator.h>
 
 namespace at { namespace native {
 
@@ -125,6 +126,7 @@ void cudnn_max_pooling_with_indices(const Tensor& input,  IntArrayRef kernel_siz
                        .build();
 
     const uint64_t spatial_dim = stride.size();
+    int64_t postpadding[3] = {0, 0, 0};
      // Define the resample descriptor
     auto poolDesc = cudnn_frontend::ResampleDescBuilder_v8()
                         .setComputeType(CUDNN_DATA_FLOAT)
@@ -133,8 +135,8 @@ void cudnn_max_pooling_with_indices(const Tensor& input,  IntArrayRef kernel_siz
                         .setPaddingMode(CUDNN_NEG_INF_PAD)
                         .setSpatialDim(spatial_dim, kernel_size.data())
                         .setSpatialStride(spatial_dim, stride.data())
-                        .setPrePadding(spatial_dim, padding)
-                        .setPostPadding(spatial_dim, padding)
+                        .setPrePadding(spatial_dim, padding.data())
+                        .setPostPadding(3, postpadding)
                         .build(); 
     auto pool_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_RESAMPLE_FWD_DESCRIPTOR)
                        .setxDesc(xTensor)
@@ -151,9 +153,21 @@ void cudnn_max_pooling_with_indices(const Tensor& input,  IntArrayRef kernel_siz
     auto statuses = cudnn_frontend::get_heuristics_list<2>({"heuristics_instant", "heuristics_fallback"}, opGraph, allowAll, filtered_configs, true);
     auto plan =
     cudnn_frontend::ExecutionPlanBuilder().setHandle(handle).setEngineConfig(filtered_configs[0], opGraph.getTag()).build();
-
-
-    
+    auto workspace_size = plan.getWorkspaceSize();
+    TORCH_WARN("workspace required: ", workspace_size);
+    void* workspace_ptr = nullptr;
+    if (workspace_size) {
+      workspace_ptr = c10::cuda::CUDACachingAllocator::get()->allocate(workspace_size).get();
+    }
+    void* data_ptrs[] = {input.data_ptr(), output.data_ptr(), indices.data_ptr()};
+    int64_t uids[]    = {'x', 'y', 'i'};
+    auto variantPack  = cudnn_frontend::VariantPackBuilder()
+                           .setWorkspacePointer(workspace_ptr)
+                           .setDataPointers(3, data_ptrs)
+                           .setUids(3, uids)
+                           .build();
+    cudnnStatus_t status = cudnnBackendExecute(handle, plan.get_raw_desc(), variantPack.get_raw_desc());
+    TORCH_WARN("status", status);
   } 
 }   
     

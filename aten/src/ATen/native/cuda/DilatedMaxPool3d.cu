@@ -606,7 +606,21 @@ std::tuple<Tensor, Tensor> max_pool3d_with_indices_cuda(
   NoNamesGuard guard;
 
   Tensor output = at::empty({0}, input.options());
-  Tensor indices = at::empty({0}, input.options().dtype(kLong));
+  auto indices_dtype = kLong;
+  auto max_index = 1;
+  if (kernel_size.size() > 1) {
+    for (uint8_t i = 0; i < kernel_size.size(); i++) {
+      max_index *= kernel_size[i];
+    }
+  } else {
+    for (uint8_t i = 0; i < input.sizes().size() - 2; i++) {
+      max_index *= kernel_size[0];
+    }
+  }
+  if (max_index <= 127) {
+    indices_dtype = kChar;
+  }
+  Tensor indices = at::empty({0}, input.options().dtype(indices_dtype));
   max_pool3d_with_indices_out_cuda_template(
     output,
     indices,
