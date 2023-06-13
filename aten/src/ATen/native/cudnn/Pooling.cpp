@@ -45,6 +45,7 @@ void update(const KeyType& key, T& results) {
 
 
 JITCache<cudnn_frontend::ExecutionPlan, PoolingParams> jit_cache;
+JITCache<cudnn_frontend::ExecutionPlan, PoolingParams> jit_cache_backward;
 
 void setPoolingParams(PoolingParams& params, const Tensor& input, IntArrayRef kernel, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation) {
   memset(&params, 0, sizeof(params));
@@ -101,7 +102,21 @@ void cudnn_max_pooling_with_indices(const Tensor& input,  IntArrayRef kernel_siz
   cudnnHandle_t handle = getCudnnHandle();
   auto result = jit_cache.find(params);
   if (result) {
-
+    auto workspace_size = result->getWorkspaceSize();
+    TORCH_WARN("workspace required: ", workspace_size);
+    void* workspace_ptr = nullptr;
+    if (workspace_size) {
+      workspace_ptr = c10::cuda::CUDACachingAllocator::get()->allocate(workspace_size).get();
+    }
+    void* data_ptrs[] = {input.data_ptr(), output.data_ptr(), indices.data_ptr()};
+    int64_t uids[]    = {'x', 'y', 'i'};
+    auto variantPack  = cudnn_frontend::VariantPackBuilder()
+                           .setWorkspacePointer(workspace_ptr)
+                           .setDataPointers(3, data_ptrs)
+                           .setUids(3, uids)
+                           .build();
+    cudnnStatus_t status = cudnnBackendExecute(handle, result->get_raw_desc(), variantPack.get_raw_desc());
+    TORCH_WARN("status", status);
   } else { 
     auto xTensor = cudnn_frontend::TensorBuilder()
                      .setDim(input.sizes().size(), input.sizes().data())
@@ -168,7 +183,115 @@ void cudnn_max_pooling_with_indices(const Tensor& input,  IntArrayRef kernel_siz
                            .build();
     cudnnStatus_t status = cudnnBackendExecute(handle, plan.get_raw_desc(), variantPack.get_raw_desc());
     TORCH_WARN("status", status);
+    if (!status) {
+      jit_cache.update(params, plan);
+    }
   } 
-}   
+}
+
+void cudnn_max_pooling_backward(Tensor& gradInput, const Tensor& gradOutput, const Tensor& input, const Tensor& indices, IntArrayRef kernel_size,
+        IntArrayRef stride,
+        IntArrayRef padding,
+        IntArrayRef dilation) {
+  int dims = dilation.size();
+  for (int i = 0; i < dims; i++) {
+    TORCH_INTERNAL_ASSERT(dilation[i] == 1, "cuDNN pooling does not currently support dilation != 1");
+  }
+  PoolingParams params;
+  setPoolingParams(params, input, kernel_size, stride, padding, dilation);
+  cudnnHandle_t handle = getCudnnHandle();
+  auto result = jit_cache_backward.find(params);
+
+  if (result) {
+    auto workspace_size = result->getWorkspaceSize();
+    TORCH_WARN("workspace required: ", workspace_size);
+    void* workspace_ptr = nullptr;
+    if (workspace_size) {
+      workspace_ptr = c10::cuda::CUDACachingAllocator::get()->allocate(workspace_size).get();
+    }
+  // Create the variant pack and associate with the data pointers 
+     void* data_ptrs[] = {gradInput.data_ptr(), gradOutput.data_ptr(), indices.data_ptr()};
+     int64_t uids[]    = {'x', 'y', 'i'};
+     auto variantPack  = cudnn_frontend::VariantPackBuilder()
+                            .setWorkspacePointer(workspace_ptr)
+                            .setDataPointers(3, data_ptrs)
+                            .setUids(3, uids)
+                            .build();
+     cudnnStatus_t status = cudnnBackendExecute(handle, result->get_raw_desc(), variantPack.get_raw_desc());
+     TORCH_WARN("status", status);
+  } else { 
+     auto dyTensor = cudnn_frontend::TensorBuilder()
+                        .setDim(gradOutput.sizes().size(), gradOutput.sizes().data())
+                        .setStrides(gradOutput.strides().size(), gradOutput.strides().data())
+                        .setId('y')
+                        .setAlignment(getAlignment(gradOutput))  // 16B alignment is needed to run a tensor core engine
+                        .setDataType(getCudnnDataType(gradOutput))
+                        .build();
+     auto dxTensor = cudnn_frontend::TensorBuilder()
+                                .setDim(gradInput.sizes().size(), gradInput.sizes().data())
+                                .setStrides(gradInput.strides().size(), gradInput.strides().data())
+                                .setId('x')
+                                .setAlignment(getAlignment(gradInput))
+                                .setDataType(getCudnnDataType(gradInput))
+                                .build();
+     auto idxTensor = cudnn_frontend::TensorBuilder()
+                                .setDim(indices.sizes().size(), indices.sizes().data())
+                                .setStrides(indices.strides().size(), indices.strides().data())
+                                .setId('i') 
+                                .setAlignment(getAlignment(indices))
+                                .setDataType(getCudnnDataType(indices))
+                                .build();
+     const uint64_t spatial_dim = stride.size();
+     int64_t postpadding[3] = {0, 0, 0};
+
+     auto poolDesc = cudnn_frontend::ResampleDescBuilder_v8()
+                    .setComputeType(CUDNN_DATA_FLOAT)
+                    //.setNanPropagation(nanOpt)
+                    .setResampleMode(CUDNN_RESAMPLE_MAXPOOL)
+                    .setPaddingMode(CUDNN_NEG_INF_PAD)
+                    .setSpatialDim(spatial_dim, kernel_size.data())
+                    .setSpatialStride(spatial_dim, stride.data())
+                    .setPrePadding(spatial_dim, padding.data())
+                    .setPostPadding(spatial_dim, postpadding)
+                    .build(); 
+
+     auto pool_op = cudnn_frontend::OperationBuilder(CUDNN_BACKEND_OPERATION_RESAMPLE_BWD_DESCRIPTOR)
+                        .setdxDesc(dxTensor)
+                        .setdyDesc(dyTensor)
+                        .setidxDesc(idxTensor)
+                        .setResampleDesc(poolDesc)
+                        .build();
+     std::array<cudnn_frontend::Operation const*, 1> ops = {&pool_op};
+     auto opGraph = cudnn_frontend::OperationGraphBuilder()
+                        .setHandle(handle)
+                        .setOperationGraph(ops.size(), ops.data())
+                        .build();
+
+     cudnn_frontend::EngineConfigList filtered_configs;
+     auto statuses = cudnn_frontend::get_heuristics_list<2>({"heuristics_instant", "heuristics_fallback"}, opGraph, allowAll, filtered_configs, true);
+     auto plan =
+         cudnn_frontend::ExecutionPlanBuilder().setHandle(handle).setEngineConfig(filtered_configs[0], opGraph.getTag()).build();
+     auto workspace_size = plan.getWorkspaceSize();
+     TORCH_WARN("workspace required: ", workspace_size);
+     void* workspace_ptr = nullptr;
+     if (workspace_size) {
+       workspace_ptr = c10::cuda::CUDACachingAllocator::get()->allocate(workspace_size).get();
+     }
+  // Create the variant pack and associate with the data pointers 
+     void* data_ptrs[] = {gradInput.data_ptr(), gradOutput.data_ptr(), indices.data_ptr()};
+     int64_t uids[]    = {'x', 'y', 'i'};
+     auto variantPack  = cudnn_frontend::VariantPackBuilder()
+                            .setWorkspacePointer(workspace_ptr)
+                            .setDataPointers(3, data_ptrs)
+                            .setUids(3, uids)
+                            .build();
+     cudnnStatus_t status = cudnnBackendExecute(handle, plan.get_raw_desc(), variantPack.get_raw_desc()); 
+     TORCH_WARN("status", status);
+     if (!status) {
+       jit_cache_backward.update(params, plan);
+     }
+  }
+}
+
     
 }}  

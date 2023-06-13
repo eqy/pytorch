@@ -38,6 +38,29 @@ __device__ inline int min(int a, int b) {
   return a <= b ? a : b;
 }
 
+bool can_use_cudnn_pooling(IntArrayRef input_size, IntArrayRef kernel_size, IntArrayRef dilation) {
+  auto max_index = 1;
+  if (kernel_size.size() > 1) {
+    for (uint8_t i = 0; i < kernel_size.size(); i++) {
+      max_index *= kernel_size[i];
+    }
+  } else {
+    for (uint8_t i = 0; i < input_size.size() - 2; i++) {
+      max_index *= kernel_size[0];
+    }
+  }
+  if (max_index > 127) {
+    return false;
+  }
+  const int dilation_dim = dilation.size();
+  for (int i = 0; i < dilation_dim; i++) {
+    if (dilation[i] != 1) {
+      return false;
+    }
+  }
+  return true;
+}
+
 template <typename scalar_t>
 __global__ static void max_pool3d_with_indices_single_out_frame(
   const scalar_t* inputData,
@@ -386,14 +409,7 @@ void max_pool3d_with_indices_out_cuda_template(
     return;
   }
 
-  const int dilation_dim = dilation.size();
-  bool cudnn_dilation_ok = true;
-  for (int i = 0; i < dilation_dim; i++) {
-    if (dilation[i] != 1) {
-      cudnn_dilation_ok = false;
-    }
-  }
-  if (cudnn_dilation_ok && use_cudnn_v8_jit_pooling()) {
+  if (indices.scalar_type() == kChar) {
     cudnn_max_pooling_with_indices(
       input,
       kernel_size,
@@ -538,6 +554,19 @@ void max_pool3d_with_indices_backward_out_cuda_template(
     return;
   }
 
+  if (indices.scalar_type() == kChar) {
+    cudnn_max_pooling_backward(
+      gradInput,
+      gradOutput,
+      input,
+      indices,
+      kernel_size,
+      stride,
+      padding,
+      dilation);
+     return;
+  };
+
   Tensor work_grad_input = gradInput;
   Tensor work_grad_output;
   Tensor work_indices;
@@ -607,17 +636,7 @@ std::tuple<Tensor, Tensor> max_pool3d_with_indices_cuda(
 
   Tensor output = at::empty({0}, input.options());
   auto indices_dtype = kLong;
-  auto max_index = 1;
-  if (kernel_size.size() > 1) {
-    for (uint8_t i = 0; i < kernel_size.size(); i++) {
-      max_index *= kernel_size[i];
-    }
-  } else {
-    for (uint8_t i = 0; i < input.sizes().size() - 2; i++) {
-      max_index *= kernel_size[0];
-    }
-  }
-  if (max_index <= 127) {
+  if (can_use_cudnn_pooling(input.sizes(), kernel_size, dilation) && use_cudnn_v8_jit_pooling() ) {
     indices_dtype = kChar;
   }
   Tensor indices = at::empty({0}, input.options().dtype(indices_dtype));

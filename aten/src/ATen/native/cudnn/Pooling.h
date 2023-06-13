@@ -24,4 +24,8 @@ static bool use_cudnn_v8_jit_pooling() {
 
 void setPoolingParams(PoolingParams& params, Tensor& input, IntArrayRef kernel, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation);
 void cudnn_max_pooling_with_indices(const Tensor& input, IntArrayRef kernel_size, IntArrayRef stride, IntArrayRef padding, IntArrayRef dilation, Tensor& output, Tensor& indices);
+void cudnn_max_pooling_backward(Tensor& gradInput, const Tensor& gradOutput, const Tensor& input, const Tensor& indices, IntArrayRef kernel_size,
+        IntArrayRef stride,
+        IntArrayRef padding,
+        IntArrayRef dilation);
 }}
