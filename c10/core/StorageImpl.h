@@ -35,6 +35,7 @@ struct C10_API StorageImpl : public c10::intrusive_ptr_target {
  public:
   struct use_byte_size_t {};
 
+  __attribute__ ((hot))
   StorageImpl(
       use_byte_size_t /*use_byte_size*/,
       SymInt size_bytes,
@@ -53,6 +54,7 @@ struct C10_API StorageImpl : public c10::intrusive_ptr_target {
     }
   }
 
+  __attribute__ ((hot))
   StorageImpl(
       use_byte_size_t /*use_byte_size*/,
       const SymInt& size_bytes,
@@ -74,6 +76,7 @@ struct C10_API StorageImpl : public c10::intrusive_ptr_target {
   StorageImpl(const StorageImpl&) = delete;
   ~StorageImpl() override = default;
 
+  __attribute__ ((hot))
   void reset() {
     data_ptr_.clear();
     size_bytes_ = 0;
@@ -82,10 +85,12 @@ struct C10_API StorageImpl : public c10::intrusive_ptr_target {
 
   // Destructor doesn't call release_resources because it's
   // unnecessary; don't forget to change that if needed!
+  __attribute__ ((hot))
   void release_resources() override {
     data_ptr_.clear();
   }
 
+  __attribute__ ((hot))
   size_t nbytes() const {
     // OK to do this instead of maybe_as_int as nbytes is guaranteed positive
     TORCH_CHECK(!size_bytes_is_heap_allocated_);
@@ -110,15 +115,18 @@ struct C10_API StorageImpl : public c10::intrusive_ptr_target {
     return resizable_;
   }
 
+  __attribute__ ((hot))
   at::DataPtr& mutable_data_ptr() {
     return data_ptr_;
   }
 
+  __attribute__ ((hot))
   const at::DataPtr& data_ptr() const {
     return data_ptr_;
   }
 
   // Returns the previous data_ptr
+  __attribute__ ((hot))
   at::DataPtr set_data_ptr(at::DataPtr&& data_ptr) {
     at::DataPtr old_data_ptr(std::move(data_ptr_));
     data_ptr_ = std::move(data_ptr);
@@ -129,22 +137,27 @@ struct C10_API StorageImpl : public c10::intrusive_ptr_target {
     data_ptr_ = std::move(data_ptr);
   }
 
+  __attribute__ ((hot))
   const void* data() const {
     return data_ptr_.get();
   }
 
+  __attribute__ ((hot))
   void* mutable_data() {
     return data_ptr_.mutable_get();
   }
 
+  __attribute__ ((hot))
   at::DeviceType device_type() const {
     return data_ptr_.device().type();
   }
 
+  __attribute__ ((hot))
   at::Allocator* allocator() {
     return allocator_;
   }
 
+  __attribute__ ((hot))
   const at::Allocator* allocator() const {
     return allocator_;
   }
@@ -157,6 +170,7 @@ struct C10_API StorageImpl : public c10::intrusive_ptr_target {
     allocator_ = allocator;
   }
 
+  __attribute__ ((hot))
   Device device() const {
     return data_ptr_.device();
   }

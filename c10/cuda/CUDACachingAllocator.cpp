@@ -1322,7 +1322,7 @@ class DeviceCachingAllocator {
 
   // All public methods (except the above) acquire the allocator mutex.
   // Thus, do not call a public method from another public method.
-
+  __attribute__ ((hot))
   Block* malloc(int device, size_t orig_size, cudaStream_t stream) {
     // done outside the lock because we don't know what locks the recorder needs
     // to have...
@@ -1482,6 +1482,7 @@ class DeviceCachingAllocator {
         std::move(params), orig_size, std::move(context), split_remainder);
   }
 
+  __attribute__ ((hot))
   Block* alloc_found_block(
       AllocParams params,
       size_t orig_size,
@@ -1584,6 +1585,7 @@ class DeviceCachingAllocator {
     return block;
   }
 
+  __attribute__ ((hot))
   void free(Block* block) {
     std::shared_ptr<GatheredContext> context =
         maybeGatherContext(RecordContext::ALL);
@@ -1636,6 +1638,7 @@ class DeviceCachingAllocator {
         c10::Device(c10::DeviceType::CUDA, block->device));
   }
 
+  __attribute__ ((hot))
   void* getBaseAllocation(Block* block, size_t* outSize) {
     std::lock_guard<std::recursive_mutex> lock(mutex);
     TORCH_CHECK(
@@ -1656,6 +1659,7 @@ class DeviceCachingAllocator {
     return basePtr;
   }
 
+  __attribute__ ((hot))
   void recordStream(Block* block, cuda::CUDAStream stream) {
     std::lock_guard<std::recursive_mutex> lock(mutex);
     if (stream.stream() == block->stream) {
@@ -1683,6 +1687,7 @@ class DeviceCachingAllocator {
   }
 
   /** Retrieves size of largest unused block held by the memory cache **/
+  __attribute__ ((hot))
   void cacheInfo(size_t* largest) {
     std::lock_guard<std::recursive_mutex> lock(mutex);
     if (*largest ==
@@ -2371,6 +2376,7 @@ class DeviceCachingAllocator {
   }
 
   /** moves a block into a pool of cached free blocks */
+  __attribute__ ((hot))
   void free_block(
       Block* block,
       const std::shared_ptr<GatheredContext>& context) {
@@ -2442,6 +2448,7 @@ class DeviceCachingAllocator {
 
   /** combine previously split blocks. returns the size of the subsumed block,
    * or 0 on failure. */
+  __attribute__ ((hot))
   size_t try_merge_blocks(Block* dst, Block* src, BlockPool& pool) {
     if (!src || src->allocated || src->event_count > 0 ||
         !src->stream_uses.empty() || dst->mapped != src->mapped) {
@@ -2508,6 +2515,7 @@ class DeviceCachingAllocator {
     return stat_types;
   }
 
+  __attribute__ ((hot))
   bool should_split(const Block* block, size_t size) {
     size_t remaining = block->size - size;
     if (block->pool->is_small ||
@@ -2519,6 +2527,7 @@ class DeviceCachingAllocator {
     }
   }
 
+  __attribute__ ((hot))
   static size_t get_allocation_size(size_t size) {
     if (size <= kSmallSize) {
       return kSmallBuffer;
@@ -2529,6 +2538,7 @@ class DeviceCachingAllocator {
     }
   }
 
+  __attribute__ ((hot))
   bool get_free_block(AllocParams& p) {
     BlockPool& pool = *p.pool;
 
@@ -2600,6 +2610,7 @@ class DeviceCachingAllocator {
     return freed_memory;
   }
 
+  __attribute__ ((hot))
   void garbage_collect_cached_blocks() {
     // Free unused cached blocks to reclaim GPU memory.
     // Unlike release_cached_blocks(), this does not enforce synchronization and
@@ -2661,6 +2672,7 @@ class DeviceCachingAllocator {
   // can be expensive while holding the lock. Hence, we pass-in the lock to the
   // function to temporarily release the lock before cudaMalloc call and acquire
   // it back again after the call so that other threads dont get blocked.
+  __attribute__ ((hot))
   bool alloc_block(
       AllocParams& p,
       bool isRetry,
@@ -2759,6 +2771,7 @@ class DeviceCachingAllocator {
   /** Free one or more oversize blocks to the system allocator.  But only enough
    * **/
   /** to satisfy the target size **/
+  __attribute__ ((hot))
   bool release_available_cached_blocks(const AllocParams& p) {
     if (CachingAllocatorConfig::max_split_size() ==
         std::numeric_limits<size_t>::max())
@@ -2805,6 +2818,7 @@ class DeviceCachingAllocator {
     return true;
   }
 
+  __attribute__ ((hot))
   bool release_cached_blocks(const std::shared_ptr<GatheredContext>& context) {
     // First ensure that all blocks that can't currently be allocated due to
     // outstanding events are returned to the pool.
@@ -2848,6 +2862,7 @@ class DeviceCachingAllocator {
     delete block;
   }
 
+  __attribute__ ((hot))
   void release_block(Block* block) {
     TORCH_INTERNAL_ASSERT(!block->expandable_segment_);
     C10_CUDA_CHECK(cudaFree((void*)block->ptr));
@@ -2938,6 +2953,8 @@ class DeviceCachingAllocator {
           nullptr);
     }
   }
+
+  __attribute__ ((hot))
   void release_blocks(BlockPool& pool) {
     std::vector<Block*> to_unmap;
     // Frees all non-split blocks

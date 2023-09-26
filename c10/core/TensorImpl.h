@@ -513,12 +513,14 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * Construct a 1-dim 0-size tensor backed by the given storage.
    */
+  __attribute__ ((hot))
   TensorImpl(
       Storage&& storage,
       DispatchKeySet,
       const caffe2::TypeMeta data_type);
 
   // See Note [Enum ImplType]
+  __attribute__ ((hot))
   TensorImpl(
       ImplType,
       Storage&& storage,
@@ -528,6 +530,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * Construct a 1-dim 0 size tensor that doesn't have a storage.
    */
+  __attribute__ ((hot))
   TensorImpl(
       DispatchKeySet,
       const caffe2::TypeMeta data_type,
@@ -535,6 +538,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
 
   // Legacy constructors so I don't have to go update call sites.
   // TODO: When Variable is added, delete these constructors
+  __attribute__ ((hot))
   TensorImpl(
       Storage&& storage,
       DispatchKey dispatch_key,
@@ -543,6 +547,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
             std::move(storage),
             DispatchKeySet(dispatch_key),
             data_type) {}
+  __attribute__ ((hot))
   TensorImpl(
       DispatchKey dispatch_key,
       const caffe2::TypeMeta data_type,
@@ -554,6 +559,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   // storage.  Still, we pass it in separately because it's easier to write
   // the initializer list if we're not worried about storage being moved out
   // from under us.
+  __attribute__ ((hot))
   TensorImpl(
       Storage&& storage,
       DispatchKeySet,
@@ -604,6 +610,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * Return a reference to the sizes of this tensor.  This reference remains
    * valid as long as the tensor is live and not resized.
    */
+  __attribute__ ((hot))
   IntArrayRef sizes() const {
     if (C10_UNLIKELY(matches_policy(SizesStridesPolicy::CustomSizes))) {
       return sizes_custom();
@@ -687,6 +694,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * is no longer true; numel always accurately reports the product
    * of sizes of a tensor.
    */
+  __attribute__ ((hot))
   int64_t numel() const {
     if (C10_UNLIKELY(matches_policy(SizesStridesPolicy::CustomSizes))) {
       return numel_custom();
@@ -720,6 +728,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * Return the number of dimensions of this tensor.  Note that 0-dimension
    * represents a Tensor that is a Scalar, e.g., one that has a single element.
    */
+  __attribute__ ((hot))
   int64_t dim() const {
     if (C10_UNLIKELY(matches_policy(SizesStridesPolicy::CustomSizes))) {
       return dim_custom();
@@ -727,6 +736,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
     return sizes_and_strides_.size();
   }
 
+  __attribute__ ((hot))
   int64_t dim_default() const {
     if (has_symbolic_sizes_strides_) {
       return symbolic_shape_meta().sizes_.size();
@@ -742,6 +752,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    *
    * WARNING: This is NOT computed in bytes.
    */
+  __attribute__ ((hot))
   int64_t storage_offset() const {
     // TODO: maybe this should be toggled by strides
     if (C10_UNLIKELY(matches_policy(SizesStridesPolicy::CustomSizes))) {
@@ -776,6 +787,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * Return a reference to the strides of this tensor.  This reference remains
    * valid as long as the tensor is live and not restrided.
    */
+  __attribute__ ((hot))
   IntArrayRef strides() const {
     if (C10_UNLIKELY(matches_policy(SizesStridesPolicy::CustomStrides))) {
       return strides_custom();
@@ -812,6 +824,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * compute_contiguous() for the exact definition of whether or not
    * a tensor is contiguous or not.
    */
+  __attribute__ ((hot))
   bool is_contiguous(
       at::MemoryFormat memory_format = at::MemoryFormat::Contiguous) const {
     if (C10_UNLIKELY(matches_policy(SizesStridesPolicy::CustomStrides))) {
@@ -883,6 +896,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * NOTE: if you know wrapping is unnecessary, do sizes()[d] instead; it will
    * be faster
    */
+  __attribute__ ((hot))
   int64_t size(int64_t d) const {
     if (C10_UNLIKELY(matches_policy(SizesStridesPolicy::CustomSizes))) {
       return size_custom(d);
@@ -907,6 +921,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * NOTE: if you know wrapping is unnecessary, do sizes()[d] instead; it will
    * be faster
    */
+  __attribute__ ((hot))
   int64_t stride(int64_t d) const {
     d = maybe_wrap_dim(d, dim(), false);
     if (C10_UNLIKELY(matches_policy(SizesStridesPolicy::CustomStrides))) {
@@ -1057,6 +1072,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
 
  public:
   // Whether a tensor is sparse COO or not.
+  __attribute__ ((hot))
   bool is_sparse() const {
     // NB: This method is not virtual and avoid dispatches for performance
     // reasons.
@@ -1084,6 +1100,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
     return device_opt_.has_value() && device_opt_->type() == kMeta;
   }
 
+  __attribute__ ((hot))
   bool is_cpu() const {
     // NB: This method is not virtual and avoid dispatches for performance
     // reasons.
@@ -1096,6 +1113,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
     return device_opt_.has_value() && device_opt_->type() == kCPU;
   }
 
+  __attribute__ ((hot))
   bool is_cuda() const {
     // NB: This method is not virtual and avoid dispatches for performance
     // reasons.
@@ -1215,6 +1233,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   // Inference tensor doesn't have autograd or ADInplaceOrView key.
   // Invariant:
   //   Inference tensor has version_counter_.enabled() == false
+  __attribute__ ((hot))
   bool is_inference() {
     bool no_ADInplaceOrView = !key_set_.has_any(c10::inplace_or_view_ks);
     bool no_Autograd = !key_set_.has_any(c10::autograd_dispatch_keyset);
@@ -1224,6 +1243,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
     return no_ADInplaceOrView && no_Autograd;
   }
 
+  __attribute__ ((hot))
   int64_t get_device() const {
     if (C10_UNLIKELY(device_policy_)) {
       return device_custom().index();
@@ -1231,6 +1251,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
     return device_default().index();
   }
 
+  __attribute__ ((hot))
   Device device() const {
     if (C10_UNLIKELY(device_policy_)) {
       return device_custom();
@@ -1351,6 +1372,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * requires gradient and has no history is a "leaf" tensor, which we
    * accumulate gradients into.
    */
+  __attribute__ ((hot))
   bool requires_grad() const;
 
   /**
@@ -1363,6 +1385,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
    * Return the accumulated gradient of a tensor.  This gradient is written
    * into when performing backwards, when this tensor is a leaf tensor.
    */
+  __attribute__ ((hot))
   const at::Tensor& grad() const;
 
   /**
@@ -1612,6 +1635,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /// get_data must return a byte-addressed pointer, e.g. char*,
   /// std::byte const*, etc.
   template <typename Void, typename Func>
+  __attribute__ ((hot))
   Void* data_impl(const Func& get_data) const {
     if (C10_UNLIKELY(!has_storage())) {
       throw_data_ptr_access_error();
@@ -1712,6 +1736,8 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
   /**
    * True if a tensor has no elements (e.g., numel() == 0).
    */
+
+  __attribute__ ((hot))
   inline bool is_empty() const {
     return numel() == 0;
   }
