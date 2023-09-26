@@ -86,6 +86,7 @@ __global__ void unrolled_elementwise_kernel(int N, func_t f, array_t data,
 
 // this function assume trivial 1d and no dynamic casting
 template<typename func_t, typename array_t>
+__attribute__ ((hot))
 static inline void launch_vectorized_kernel(int64_t N, const func_t& f, array_t data) {
   TORCH_INTERNAL_ASSERT(N > 0 && N <= std::numeric_limits<int32_t>::max());
   using traits = function_traits<func_t>;
@@ -116,8 +117,8 @@ static inline void launch_vectorized_kernel(int64_t N, const func_t& f, array_t 
   }
 }
 
-
 template<typename func_t, typename array_t, typename inp_calc_t, typename out_calc_t, typename loader_t, typename storer_t>
+__attribute__ ((hot))
 static inline void launch_unrolled_kernel(int64_t N, const func_t& f, array_t data,
                                           inp_calc_t ic, out_calc_t oc, loader_t l, storer_t s)
 {
@@ -144,6 +145,7 @@ __global__ void elementwise_kernel(int N, func_t f) {
 }
 
 template<int nt, int vt, typename func_t>
+__attribute__ ((hot))
 static void launch_legacy_kernel(int64_t N, const func_t& f) {
   TORCH_INTERNAL_ASSERT(N >= 0 && N <= std::numeric_limits<int32_t>::max());
   if (N == 0) {
@@ -188,8 +190,8 @@ invoke(const func_t &f, char *const C10_RESTRICT data[], const index_t strides[]
   return invoke_impl<traits>(f, data, strides, dtypes, i, Indices{});
 }
 
-
 template <typename func_t>
+__attribute__ ((hot))
 void gpu_kernel_impl(TensorIteratorBase& iter, const func_t& f) {
   using traits = function_traits<func_t>;
   using arg0_t = typename traits::result_type;

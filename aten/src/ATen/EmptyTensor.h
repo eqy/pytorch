@@ -45,6 +45,7 @@ TORCH_API SymInt computeStorageNbytes(
     const SymInt& itemsize,
     const SymInt& storage_offset = 0);
 
+__attribute__ ((hot))
 TORCH_API TensorBase empty_generic(
     IntArrayRef size,
     c10::Allocator* allocator,
@@ -52,6 +53,7 @@ TORCH_API TensorBase empty_generic(
     ScalarType scalar_type,
     c10::optional<c10::MemoryFormat> memory_format_opt);
 
+__attribute__ ((hot))
 TORCH_API TensorBase empty_strided_generic(
     IntArrayRef size,
     IntArrayRef stride,
@@ -59,6 +61,7 @@ TORCH_API TensorBase empty_strided_generic(
     c10::DispatchKeySet ks,
     ScalarType scalar_type);
 
+__attribute__ ((hot))
 TORCH_API TensorBase empty_strided_symint_generic(
     SymIntArrayRef size,
     SymIntArrayRef stride,
@@ -66,12 +69,14 @@ TORCH_API TensorBase empty_strided_symint_generic(
     c10::DispatchKeySet ks,
     ScalarType scalar_type);
 
+__attribute__ ((hot))
 TORCH_API TensorBase empty_cpu(
     IntArrayRef size,
     ScalarType dtype,
     bool pin_memory = false,
     c10::optional<c10::MemoryFormat> memory_format_opt = c10::nullopt);
 
+__attribute__ ((hot))
 TORCH_API TensorBase empty_cpu(
     IntArrayRef size,
     c10::optional<ScalarType> dtype_opt,
@@ -80,14 +85,17 @@ TORCH_API TensorBase empty_cpu(
     c10::optional<bool> pin_memory_opt,
     c10::optional<c10::MemoryFormat> memory_format_opt);
 
+__attribute__ ((hot))
 TORCH_API TensorBase empty_cpu(IntArrayRef size, const TensorOptions& options);
 
+__attribute__ ((hot))
 TORCH_API TensorBase empty_strided_cpu(
     IntArrayRef size,
     IntArrayRef stride,
     ScalarType dtype,
     bool pin_memory = false);
 
+__attribute__ ((hot))
 TORCH_API TensorBase empty_strided_cpu(
     IntArrayRef size,
     IntArrayRef stride,
@@ -96,6 +104,7 @@ TORCH_API TensorBase empty_strided_cpu(
     c10::optional<Device> device_opt,
     c10::optional<bool> pin_memory_opt);
 
+__attribute__ ((hot))
 TORCH_API TensorBase empty_strided_cpu(
     IntArrayRef size,
     IntArrayRef stride,

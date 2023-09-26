@@ -29,6 +29,7 @@ namespace at {
 namespace native {
 
 template <typename Tuple, std::size_t... I>
+__attribute__ ((hot))
 constexpr auto tuple_to_array_helper(Tuple& t, std::index_sequence<I...> seq) {
     constexpr auto size = seq.size();
     (void)t; // warning : unused parameter when tuple is empty.
@@ -41,6 +42,7 @@ constexpr auto tuple_to_array_helper(Tuple& t, std::index_sequence<I...> seq) {
 // so the pointers in returned array are only valid
 // till tuple is alive.
 template <typename ...Args>
+__attribute__ ((hot))
 constexpr auto tuple_to_array(std::tuple<Args...>& extra_args) {
     constexpr auto tuple_size = sizeof...(Args);
     return tuple_to_array_helper(extra_args, std::make_index_sequence<tuple_size>{});
@@ -60,6 +62,7 @@ struct JittedKernelVariantCache {
   at::cuda::jit::NvrtcFunction dynamic_noncontiguous;
 };
 
+__attribute__ ((hot))
 inline c10::SmallBuffer<void*, 64> pack_kernel_args(
     std::initializer_list<void*> args,
     c10::ArrayRef<void*> extra_args) {
@@ -74,6 +77,7 @@ template<typename array_t,
          typename out_calc_t,
          typename loader_t,
          typename storer_t>
+__attribute__ ((hot))
 void launch_jitted_unrolled_kernel(
     std::mutex &jiterator_mutex,
     at::cuda::jit::NvrtcFunction &fn_cache,
@@ -110,6 +114,7 @@ void launch_jitted_unrolled_kernel(
 }
 
 template<int arity, typename array_t>
+__attribute__ ((hot))
 void launch_jitted_vectorized_kernel(
     std::mutex &jiterator_mutex, JittedVecKernelCache &fn_cache,
     const at::cuda::jit::KernelDescriptor &desc, int64_t N, array_t data,
@@ -174,6 +179,7 @@ void launch_jitted_vectorized_kernel(
 }
 
 template <int arity>
+__attribute__ ((hot))
 void jitted_gpu_kernel_generic(
     std::mutex &jiterator_mutex,
     JittedKernelVariantCache &cache,
@@ -261,6 +267,7 @@ template <
     at::cuda::jit::BinaryFuncVariant scalar_pos =
         at::cuda::jit::BinaryFuncVariant::NoScalar,
     typename... ExtraArgs>
+__attribute__ ((hot))
 static void jitted_gpu_kernel_impl(
     TensorIteratorBase& iter,
     const std::string &f,
