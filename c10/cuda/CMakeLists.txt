@@ -45,7 +45,7 @@ set(C10_CUDA_HEADERS
     impl/CUDATest.h
 )
 set(CUDA_LINK_LIBRARIES_KEYWORD PRIVATE)
-torch_cuda_based_add_library(c10_cuda ${C10_CUDA_SRCS} ${C10_CUDA_HEADERS})
+torch_cuda_based_add_library(c10_cuda STATIC ${C10_CUDA_SRCS} ${C10_CUDA_HEADERS})
 set(CUDA_LINK_LIBRARIES_KEYWORD)
 # If building shared library, set dllimport/dllexport proper.
 target_compile_options(c10_cuda PRIVATE "-DC10_CUDA_BUILD_MAIN_LIB")

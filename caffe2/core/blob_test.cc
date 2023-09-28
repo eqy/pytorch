@@ -462,8 +462,8 @@ TYPED_TEST(TensorCPUTest, NoLongerAliasAfterFreeMemory) {
 
 TYPED_TEST(TensorCPUTest, KeepOnShrink) {
   // Set flags (defaults)
-  FLAGS_caffe2_keep_on_shrink = true;
-  FLAGS_caffe2_max_keep_on_shrink_memory = LLONG_MAX;
+  // FLAGS_caffe2_keep_on_shrink = true;
+  // FLAGS_caffe2_max_keep_on_shrink_memory = LLONG_MAX;
 
   vector<int> dims{2, 3, 5};
   Tensor tensor(dims, CPU);
@@ -493,8 +493,8 @@ TYPED_TEST(TensorCPUTest, KeepOnShrink) {
 
 TYPED_TEST(TensorCPUTest, MaxKeepOnShrink) {
   // Set flags
-  FLAGS_caffe2_keep_on_shrink = true;
-  FLAGS_caffe2_max_keep_on_shrink_memory = 8 * 4 * sizeof(TypeParam);
+  // FLAGS_caffe2_keep_on_shrink = true;
+  // FLAGS_caffe2_max_keep_on_shrink_memory = 8 * 4 * sizeof(TypeParam);
 
   vector<int> dims{1, 8, 8};
   Tensor tensor(dims, CPU);
@@ -514,7 +514,7 @@ TYPED_TEST(TensorCPUTest, MaxKeepOnShrink) {
   // EXPECT_NE(ptr, new_ptr);
 
   // Restore default flags
-  FLAGS_caffe2_max_keep_on_shrink_memory = LLONG_MAX;
+  // FLAGS_caffe2_max_keep_on_shrink_memory = LLONG_MAX;
 }
 
 TYPED_TEST(TensorCPUDeathTest, CannotAccessRawDataWhenEmpty) {

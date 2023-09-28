@@ -29,7 +29,7 @@
 #endif // C10_USE_GLOG
 
 C10_DECLARE_int(caffe2_log_level);
-C10_DECLARE_bool(caffe2_use_fatal_for_enforce);
+//C10_DECLARE_bool(caffe2_use_fatal_for_enforce);
 
 // Some versions of GLOG support less-spammy version of LOG_EVERY_MS. If it's
 // not available - just short-circuit to the always working one one.

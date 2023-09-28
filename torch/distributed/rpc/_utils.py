@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from typing import cast
 import logging
 from . import api
-from . import TensorPipeAgent
+# from . import TensorPipeAgent
 
 logger = logging.getLogger(__name__)
 

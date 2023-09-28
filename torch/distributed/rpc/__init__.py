@@ -51,14 +51,14 @@ if is_available():
         get_rpc_timeout,
         enable_gil_profiling,
         RpcBackendOptions,
-        _TensorPipeRpcBackendOptionsBase,
+        #_TensorPipeRpcBackendOptionsBase,
         RpcAgent,
         PyRRef,
-        TensorPipeAgent,
+        #TensorPipeAgent,
         RemoteProfilerManager,
         WorkerInfo,
         _DEFAULT_INIT_METHOD,
-        _DEFAULT_NUM_WORKER_THREADS,
+        #_DEFAULT_NUM_WORKER_THREADS,
         _UNSET_RPC_TIMEOUT,
         _DEFAULT_RPC_TIMEOUT_SEC,
     )  # noqa: F401
@@ -70,7 +70,7 @@ if is_available():
     import torch.distributed.autograd as dist_autograd
 
     from .backend_registry import BackendType
-    from .options import TensorPipeRpcBackendOptions  # noqa: F401
+    # from .options import TensorPipeRpcBackendOptions  # noqa: F401
     from .server_process_global_profiler import (
         _server_process_global_profile,
     )

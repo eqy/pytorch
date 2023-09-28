@@ -13,16 +13,16 @@
 
 #include <utility>
 
-C10_DEFINE_bool(
-    caffe2_keep_on_shrink,
-    true,
-    "If set, keeps memory when a tensor is shrinking its size.");
-
-C10_DEFINE_int64(
-    caffe2_max_keep_on_shrink_memory,
-    LLONG_MAX,
-    "The maximum memory in bytes to keep on shrink, if the difference between "
-    "tensor sizes is bigger than this then tensor will be reset.");
+//C10_DEFINE_bool(
+//    caffe2_keep_on_shrink,
+//    true,
+//    "If set, keeps memory when a tensor is shrinking its size.");
+//
+//C10_DEFINE_int64(
+//    caffe2_max_keep_on_shrink_memory,
+//    LLONG_MAX,
+//    "The maximum memory in bytes to keep on shrink, if the difference between "
+//    "tensor sizes is bigger than this then tensor will be reset.");
 
 namespace c10 {
 
@@ -213,10 +213,10 @@ void TensorImpl::HandleResize() {
         storage_.nbytes() < (storage_offset_ + numel_) * data_type_.itemsize();
   } else {
     reset_tensor = storage_.nbytes() <
-            (storage_offset_ + numel_) * data_type_.itemsize() ||
-        !FLAGS_caffe2_keep_on_shrink ||
-        storage_.nbytes() - (storage_offset_ + numel_) * data_type_.itemsize() >
-            static_cast<size_t>(FLAGS_caffe2_max_keep_on_shrink_memory);
+            (storage_offset_ + numel_) * data_type_.itemsize() //||
+        //!FLAGS_caffe2_keep_on_shrink ||
+        /*storage_.nbytes() - (storage_offset_ + numel_) * data_type_.itemsize() >
+            static_cast<size_t>(FLAGS_caffe2_max_keep_on_shrink_memory)*/;
   }
 
   if (reset_tensor && storage_initialized()) {

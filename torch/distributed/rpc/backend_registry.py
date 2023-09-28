@@ -126,7 +126,7 @@ def _init_process_group(store, rank, world_size):
 def _tensorpipe_construct_rpc_backend_options_handler(
     rpc_timeout,
     init_method,
-    num_worker_threads=rpc_constants.DEFAULT_NUM_WORKER_THREADS,
+    #num_worker_threads=rpc_constants.DEFAULT_NUM_WORKER_THREADS,
     _transports=None,
     _channels=None,
     **kwargs

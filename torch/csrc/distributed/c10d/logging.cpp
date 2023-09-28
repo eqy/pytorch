@@ -16,14 +16,14 @@ bool isLogLevelEnabled(LogLevel level) noexcept {
   // levels we adjust our ordinal value.
   int level_int = static_cast<int>(level) - 2;
 
-  if (level_int >= 0) {
-    return FLAGS_caffe2_log_level <= level_int;
-  }
+  //if (level_int >= 0) {
+  //  return FLAGS_caffe2_log_level <= level_int;
+  //}
 
   // Debug and trace levels are only enabled when c10 log level is set to INFO.
-  if (FLAGS_caffe2_log_level != 0) {
-    return false;
-  }
+  //if (FLAGS_caffe2_log_level != 0) {
+  //  return false;
+  //}
 
   if (level_int == -1) {
     return debug_level() != DebugLevel::Off;

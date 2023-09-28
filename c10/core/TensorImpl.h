@@ -35,13 +35,13 @@
 // This parameter is respected "upper-case" methods which call Resize()
 // (e.g., CopyFrom, ResizeLike); it is NOT respected by Tensor::resize_
 // or ShrinkTo, both of which guarantee to never to free memory.
-C10_DECLARE_bool(caffe2_keep_on_shrink);
+// C10_DECLARE_bool(caffe2_keep_on_shrink);
 
 // Since we can have high variance in blob memory allocated across different
 // inputs in the same run, we will shrink the blob only if the memory gain
 // is larger than this flag in bytes.  This only applies to functions which
 // respect caffe2_keep_on_shrink.
-C10_DECLARE_int64(caffe2_max_keep_on_shrink_memory);
+// C10_DECLARE_int64(caffe2_max_keep_on_shrink_memory);
 
 C10_CLANG_DIAGNOSTIC_PUSH()
 #if C10_CLANG_HAS_WARNING("-Wimplicit-int-float-conversion")

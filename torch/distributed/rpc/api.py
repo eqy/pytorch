@@ -16,7 +16,7 @@ from torch._C._distributed_rpc import (
     PyRRef,
     RemoteProfilerManager,
     WorkerInfo,
-    TensorPipeAgent,
+    #TensorPipeAgent,
     get_rpc_timeout,
     _cleanup_python_rpc_handler,
     _delete_all_user_and_unforked_owner_rrefs,

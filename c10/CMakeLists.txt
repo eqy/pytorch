@@ -43,7 +43,7 @@ file(GLOB C10_HEADERS
         macros/*.h
         util/*.h
         )
-add_library(c10 ${C10_SRCS} ${C10_HEADERS})
+add_library(c10 STATIC ${C10_SRCS} ${C10_HEADERS})
 target_compile_options_if_supported(c10 "-Wdeprecated")
 if(HAVE_SOVERSION)
   set_target_properties(c10 PROPERTIES
