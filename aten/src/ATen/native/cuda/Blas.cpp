@@ -675,6 +675,12 @@ Tensor& _int_mm_out_cuda(const Tensor& self, const Tensor& mat2, Tensor& result)
 
 #if !defined(USE_ROCM) && !defined(_MSC_VER) && defined(CUDA_VERSION) && CUDA_VERSION >= 11070
   cublasCommonArgs args(self, mat2, result);
+  // See: https://docs.nvidia.com/cuda/cublas/index.html#cublasltmatmul
+  // CUBLAS_COMPUTE_32I requires lda and ldb to be multiples of 4 and 4-byte
+  // aligned pointers.
+  TORCH_CHECK(args.lda % 4 == 0 && args.ldb % 4 == 0);
+  TORCH_WARN("alignments", reinterpret_cast<uintptr_t>(args.mata->data_ptr<int8_t>()) % 4, reinterpret_cast<uintptr_t>(args.matb->data_ptr<int8_t>()) % 4);
+  TORCH_CHECK(reinterpret_cast<uintptr_t>(args.mata->data_ptr<int8_t>()) % 4 == 0 && reinterpret_cast<uintptr_t>(args.matb->data_ptr<int8_t>()) % 4 == 0);
 
   at::cuda::blas::int8_gemm(
       args.transa == 't',
