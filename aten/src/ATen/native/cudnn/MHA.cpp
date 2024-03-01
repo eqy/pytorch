@@ -29,6 +29,29 @@ void run_cudnn_SDP_fprop(
       false, "PyTorch was not compiled with cuDNN Flash Attention enabled!");
 }
 
+
+void run_cudnn_SDP_bprop(
+    int64_t b,
+    int64_t h,
+    int64_t s_q,
+    int64_t s_kv,
+    int64_t d,
+    float scaling_factor,
+    bool is_causal,
+    double dropout_probability,
+    const Tensor& q,
+    const Tensor& k
+    const Tensor& v,
+    const Tensor& o,
+    const Tensor& softmax_stats,
+    Tensor& dO,
+    Tensor& dQ,
+    Tensor& dK,
+    Tensor& dV) {
+  TORCH_CHECK(
+    false, "PyTorch was not compiled with cuDNN Flash Attention enabled!");
+}
+
 } // namespace native
 } // namespace at
 
@@ -326,6 +349,80 @@ auto build_graph_and_tensors(
   return std::make_tuple(
       mha_graph, Q, K, V, attn_scale, seed, offset, O, Stats);
 }
+
+auto build_graph_and_tensors_backward(
+    int64_t b,
+    int64_t h,
+    int64_t s_q,
+    int64_t s_kv,
+    int64_t d,
+    float scaling_factor,
+    double dropout_probability,
+    const Tensor& q,
+    const Tensor& k,
+    const Tensor& v,
+    const Tensor& o,
+    const Tensor& stats,
+    Tensor& d_o,
+    Tensor& d_q,
+    Tensor& d_k,
+    Tensor& d_v,
+    cudnnHandle_t& handle,
+    MHAParams& params) {
+
+    std::shared_ptr<fe::graph::Tensor_attributes> bias, dropout_seed, dropout_offset;
+    auto dtype = fe::DataType_t::HALF;
+    if (q.scalar_type() == kBFloat16) {
+      dtype = fe::DataType_t::BFLOAT16;
+    }
+    auto mha_backward_graph = std::make_shared<fe::graph::Graph>();
+    mha_backward_graph->set_io_data_type(dtype)
+        .set_intermediate_data_type(fe::DataType_t::FLOAT)
+        .set_compute_data_type(fe::DataType_t::FLOAT);
+    auto Q = mha_backward_graph->tensor(
+        fe::graph::Tensor_attributes()
+            .set_name("Q")
+            .set_dim(
+                std::vector<int64_t>(params.q_dim.begin(), params.q_dim.end()))
+            .set_stride(std::vector<int64_t>(
+                params.q_stride.begin(), params.q_stride.end())));
+    auto K = mha_backward_graph->tensor(
+        fe::graph::Tensor_attributes()
+            .set_name("K")
+            .set_dim(
+                std::vector<int64_t>(params.k_dim.begin(), params.k_dim.end()))
+            .set_stride(std::vector<int64_t>(
+                params.k_stride.begin(), params.k_stride.end())));
+    auto V = mha_backward_graph->tensor(
+        fe::graph::Tensor_attributes()
+            .set_name("V")
+            .set_dim(
+                std::vector<int64_t>(params.v_dim.begin(), params.v_dim.end()))
+            .set_stride(std::vector<int64_t>(
+                params.v_stride.begin(), params.v_stride.end())));
+    auto O = mha_backward_graph->tensor(
+        fe::graph::Tensor_attributes()
+            .set_name("O")
+            .set_dim(
+                 std::vector<int64_t>(o.sizes().begin(), o.sizes().end()))
+            .set_stride(
+                 std::vector<int64_t>(o.strides().begin(), o.strides().end())));
+    auto dO = mha_backward_graph->tensor(
+        fe::graph::Tensor_attributes()
+            .set_name("dO")
+            .set_dim(
+                 std::vector<int64_t>(d_o.sizes().begin(), d_o.sizes().end()))
+            .set_stride(
+                 std::vector<int64_t>(d_o.strides().begin(), d_o.strides().end())));
+    auto STATS = mha_backward_graph->tensor(
+        fe::graph::Tensor_attributes()
+            .set_name("Stats")
+            .set_dim(
+                 std::vector<int64_t>(stats.sizes().begin(), stats.sizes().end()))
+            .set_stride(
+                 std::vector<int64_t>(stats.strides().begin(), stats.strides().end())));
+}
+
 
 void run_cudnn_SDP_fprop(
     int64_t b,
