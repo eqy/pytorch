@@ -62,7 +62,7 @@ Tensor two_four_sgemm(
     using SmArch = cutlass::arch::Sm80; // Only CC 8.x devices are supported at the moment.
     using SwizzleThreadBlock = cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>; // This choice provides good performance across wide range of operand sizes.
     constexpr int NumStages = 3; // This choice provides good performance across wide range of operand sizes.
-    using Operator = cutlass::arch::OpMultiplyAdd;
+    using Operator = cutlass::arch::OpMultiplyAddSaturate;
     constexpr int NumEVTEpilogueStages = 1;
 
     constexpr int AlignmentInputA = 128 / cutlass::sizeof_bits<ElementInputA>::value;

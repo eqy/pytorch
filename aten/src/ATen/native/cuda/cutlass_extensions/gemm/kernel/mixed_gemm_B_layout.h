@@ -33,7 +33,7 @@ struct LayoutDetailsB<TypeB, arch::Sm70> {
     static constexpr int ThreadblockK      = 64;
     using Layout                           = layout::RowMajor;
     static constexpr int ElementsPerAccess = 8;
-    using Operator                         = cutlass::arch::OpMultiplyAdd;
+    using Operator                         = cutlass::arch::OpMultiplyAddSaturate;
 };
 
 // Specializations for Turing+ when B is FP16. These are currently only used for MoE networks.
@@ -43,7 +43,7 @@ struct LayoutDetailsB<half_t, Arch, typename platform::enable_if<Arch::kMinCompu
     static constexpr int ThreadblockK      = 64;
     using Layout                           = layout::RowMajor;
     static constexpr int ElementsPerAccess = 128 / cutlass::sizeof_bits<half_t>::value;
-    using Operator                         = cutlass::arch::OpMultiplyAdd;
+    using Operator                         = cutlass::arch::OpMultiplyAddSaturate;
 };
 
 template<typename Arch>
@@ -51,7 +51,7 @@ struct LayoutDetailsB<bfloat16_t, Arch, typename platform::enable_if<Arch::kMinC
     static constexpr int ThreadblockK      = 64;
     using Layout                           = layout::RowMajor;
     static constexpr int ElementsPerAccess = 128 / cutlass::sizeof_bits<bfloat16_t>::value;
-    using Operator                         = cutlass::arch::OpMultiplyAdd;
+    using Operator                         = cutlass::arch::OpMultiplyAddSaturate;
 };
 
 // Specializations for Turing+ when B is quantized. These can use the operator OpMultiplyAddDequantizeInterleavedBToA,

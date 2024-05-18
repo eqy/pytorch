@@ -1,4 +1,4 @@
-/*
+e*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
  * All rights reserved.
  *
@@ -106,7 +106,7 @@ struct DefaultGemmType {
   static constexpr int kMinimumAlignment = 1;
   using InstructionShape = cutlass::gemm::GemmShape<1, 1, 1>;
   using OpClass = cutlass::arch::OpClassSimt;
-  using Operator = cutlass::arch::OpMultiplyAdd;
+  using Operator = cutlass::arch::OpMultiplyAddSaturate;
 };
 
 // Specialization for tensorcores with f32
@@ -137,7 +137,7 @@ struct DefaultGemmType<
   static constexpr int kMinimumAlignment = 4;
   using OpClass = cutlass::arch::OpClassTensorOp;
   using InstructionShape = cutlass::gemm::GemmShape<16, 8, 8>;
-  using Operator = cutlass::arch::OpMultiplyAdd;
+  using Operator = cutlass::arch::OpMultiplyAddSaturate;
 };
 
 // Specialization for tensorcores with f16 - Volta
@@ -148,7 +148,7 @@ struct DefaultGemmType<cutlass::arch::Sm70, cutlass::half_t, void> {
   static constexpr int kMinimumAlignment = 2;
   using OpClass = cutlass::arch::OpClassTensorOp;
   using InstructionShape = cutlass::gemm::GemmShape<8, 8, 4>;
-  using Operator = cutlass::arch::OpMultiplyAdd;
+  using Operator = cutlass::arch::OpMultiplyAddSaturate;
 };
 
 // Enables to do

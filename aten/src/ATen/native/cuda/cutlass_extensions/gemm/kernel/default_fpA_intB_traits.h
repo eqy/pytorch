@@ -31,7 +31,7 @@ struct MixedGemmArchTraits<float, float, arch> {
     static constexpr int ThreadblockK       = 8;
     using InstructionShape                  = cutlass::gemm::GemmShape<1, 1, 1>;
 
-    using Operator = cutlass::arch::OpMultiplyAdd;
+    using Operator = cutlass::arch::OpMultiplyAddSaturate;
 };
 
 // ========================= Volta Traits ===========================
