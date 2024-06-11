@@ -22,6 +22,10 @@
 #include <ATen/native/transformers/cuda/sdp_utils.h>
 
 #include <ATen/cuda/CUDAContext.h>
+
+#include <ATen/cuda/CUDAGraphsUtils.cuh>
+#include <aten/src/ATen/cuda/PhiloxCudaState.h>
+#include <ATen/native/cudnn/MHA.h>
 namespace at {
 namespace native {
 namespace {
@@ -281,6 +285,93 @@ _scaled_dot_product_flash_attention_nestedtensor_cuda(
       philox_offset,
       debug_attn_mask);
 }
+
+std::tuple<Tensor, Tensor, Tensor, Tensor> _scaled_dot_product_cudnn_attention_nestedtensor_cuda(
+    const Tensor& query,
+    const Tensor& key,
+    const Tensor& value,
+    bool compute_logsumexp,
+    double dropout_p,
+    bool is_causal,
+    c10::optional<double> scale) {
+  const int64_t batch_size = query.size(0);
+  const int64_t num_heads = query.size(1);
+  const int64_t s_q = query.size(2);
+  const int64_t head_dim = query.size(3);
+
+  const int64_t s_k = key.size(2);
+  const int64_t s_v = value.size(2);
+
+  TORCH_CHECK(
+      s_k == s_v,
+      "Key and Value must have the same sequence length");
+
+
+  at::Tensor cudnn_seed, cudnn_offset;
+  cudnn_seed = at::empty({}, at::dtype(at::kLong).device(at::kCUDA));
+  cudnn_offset = at::empty({}, at::dtype(at::kLong).device(at::kCUDA));
+
+  const bool use_dropout = std::fpclassify(dropout_p) != FP_ZERO;
+
+  // See Note [Seed and Offset Device] in _efficient_attention_forward
+  at::PhiloxCudaState philox_state;
+  const bool in_capture_stream =
+      at::cuda::currentStreamCaptureStatus() != at::cuda::CaptureStatus::None;
+  //if (use_dropout) {
+  //  // Device
+  //  auto gen = at::get_generator_or_default<at::CUDAGeneratorImpl>(
+  //      c10::nullopt, at::cuda::detail::getDefaultCUDAGenerator());
+
+  //  // See Note [Acquire lock when using random generators]
+  //  std::lock_guard<std::mutex> lock(gen->mutex_);
+  //  // if using dropout, we produce 1 random number for each element of the
+  //  // attention tensor
+  //  // TODO(eqy): should state be advanced per thread (local) amount or per call/launch (global) amount
+  //  philox_state = gen->philox_cuda_state(batch_size * num_heads * s_q * s_k );
+  //  unpack_cudnn<<<1, 1, 0, at::cuda::getCurrentCUDAStream()>>>(
+  //                                    philox_state, static_cast<int64_t*>(cudnn_seed.data_ptr()), static_cast<int64_t*>(cudnn_offset.data_ptr()));
+  //}
+
+  const auto softmax_scale = sdp::calculate_scale(query, scale).as_float_unchecked();
+
+  Tensor query_buffer_reshaped, key_buffer_reshaped, value_buffer_reshaped,
+      cumulative_sequence_length_q, cumulative_sequence_length_kv, output_shape;
+  int64_t max_seqlen_batch_q{0};
+  int64_t max_seqlen_batch_k{0};
+  std::tie(
+      query_buffer_reshaped,
+      key_buffer_reshaped,
+      value_buffer_reshaped,
+      cumulative_sequence_length_q,
+      cumulative_sequence_length_kv,
+      max_seqlen_batch_q,
+      max_seqlen_batch_k,
+      output_shape) = preprocessing::sdpa_nested_preprocessing(query, key, value);
+
+  Tensor attention, log_sumexp;
+
+  run_cudnn_SDP_fprop(batch_size/*int64_t b*/,
+                      num_heads/*int64_t h*/,
+                      s_q /*int64_t s_q*/,
+                      s_v /*int64_t s_kv*/,
+                      head_dim/*int64_t d*/,
+                      softmax_scale/*float scaling_factor*/,
+                      compute_logsumexp/* bool */,
+                      is_causal/* bool */,
+                      dropout_p/*double dropout_probability*/,
+                      query/* Tensor q*/,
+                      key/* Tensor k*/,
+                      value/* Tensor v*/,
+		      Tensor() /* Tensor cum_seq_q */,
+		      Tensor() /* Tensor cum_seq_kv */,
+                      log_sumexp/*Tensor softmaxstats*/,
+                      attention/*Tensor o*/,
+                      cudnn_seed/*Tensor dropoutseed*/,
+                      cudnn_offset/*Tensor dropoutoffset*/);
+
+  return std::make_tuple(attention, log_sumexp, cudnn_seed, cudnn_offset);
+}
+
 
 std::tuple<Tensor, Tensor, Tensor, Tensor>
 _scaled_dot_product_efficient_attention_nestedtensor_cuda(

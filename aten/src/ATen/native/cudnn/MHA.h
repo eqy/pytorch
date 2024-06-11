@@ -17,6 +17,8 @@ void run_cudnn_SDP_fprop(
     const Tensor& q,
     const Tensor& k,
     const Tensor& v,
+    const std::optional<Tensor>& cum_seq_q,
+    const std::optional<Tensor>& cum_seq_kv,
     Tensor& softmaxstats,
     Tensor& o,
     Tensor& dropoutseed,

@@ -763,13 +763,13 @@ std::tuple<Tensor, Tensor, Tensor, Tensor> _scaled_dot_product_cudnn_attention_c
   // Value (Batch x Num_heads x KV_seq_len x Dim_per_head)
   const int64_t batch_size = query.size(0);
   const int64_t num_heads = query.size(1);
-  const int64_t max_seqlen_batch_q = query.size(2);
+  const int64_t s_q = query.size(2);
   const int64_t head_dim = query.size(3);
 
-  const int64_t max_seqlen_batch_k = key.size(2);
-  const int64_t max_seqlen_batch_v = value.size(2);
+  const int64_t s_k = key.size(2);
+  const int64_t s_v = value.size(2);
   TORCH_CHECK(
-      max_seqlen_batch_k == max_seqlen_batch_v,
+      s_k == s_v,
       "Key and Value must have the same sequence length");
 
   Tensor attention, log_sumexp;
@@ -794,7 +794,7 @@ std::tuple<Tensor, Tensor, Tensor, Tensor> _scaled_dot_product_cudnn_attention_c
     // if using dropout, we produce 1 random number for each element of the
     // attention tensor
     // TODO(eqy): should state be advanced per thread (local) amount or per call/launch (global) amount
-    philox_state = gen->philox_cuda_state(batch_size * num_heads * max_seqlen_batch_q * max_seqlen_batch_k);
+    philox_state = gen->philox_cuda_state(batch_size * num_heads * s_q * s_k );
     unpack_cudnn<<<1, 1, 0, at::cuda::getCurrentCUDAStream()>>>(
                                       philox_state, static_cast<int64_t*>(cudnn_seed.data_ptr()), static_cast<int64_t*>(cudnn_offset.data_ptr()));
   }
@@ -804,8 +804,8 @@ std::tuple<Tensor, Tensor, Tensor, Tensor> _scaled_dot_product_cudnn_attention_c
 
   run_cudnn_SDP_fprop(batch_size/*int64_t b*/,
                       num_heads/*int64_t h*/,
-                      max_seqlen_batch_q/*int64_t s_q*/,
-                      max_seqlen_batch_k/*int64_t s_kv*/,
+                      s_k/*int64_t s_q*/,
+                      s_v/*int64_t s_kv*/,
                       head_dim/*int64_t d*/,
                       softmax_scale/*float scaling_factor*/,
                       compute_logsumexp/* bool */,
@@ -814,6 +814,8 @@ std::tuple<Tensor, Tensor, Tensor, Tensor> _scaled_dot_product_cudnn_attention_c
                       query/* Tensor q*/,
                       key/* Tensor k*/,
                       value/* Tensor v*/,
+		      Tensor() /* Tensor cum_seq_q */,
+		      Tensor() /* Tensor cum_seq_kv */,
                       log_sumexp/*Tensor softmaxstats*/,
                       attention/*Tensor o*/,
                       cudnn_seed/*Tensor dropoutseed*/,
