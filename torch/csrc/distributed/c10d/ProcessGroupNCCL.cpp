@@ -690,7 +690,15 @@ void ProcessGroupNCCL::WorkNCCL::synchronizeInternal(
     // Using `cudaEventSynchronize` instead of `cudaDeviceSynchronize` can:
     // - lower chance of hang;
     // - achieve better barrier performance.
-    barrierEvent_->synchronize();
+    auto currentStream = at::cuda::getCurrentCUDAStream(device_.index());
+    barrierEvent_->block(currentStream);
+    //currentStream.synchronize();
+    c10::DeviceGuard guard{device_}; // Why do we need this? see also impl in ATen wrapper
+    at::Tensor currentDeviceTensor =
+      at::empty({1}, at::TensorOptions().device(at::kCUDA).dtype(at::kByte));
+    TORCH_WARN("DEVIC EINDEX? ", device_, " DEVICE SITUATION??? ", currentDeviceTensor.device(),  " stream device? ", at::cuda::getCurrentCUDAStream(device_.index()).device());
+    AT_CUDA_CHECK(cudaStreamSynchronize(currentStream));
+    // barrierEvent_->synchronize();
   }
 }
 
