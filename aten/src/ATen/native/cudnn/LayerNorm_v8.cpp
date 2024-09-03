@@ -185,7 +185,7 @@ void raw_cudnn_layernorm_forward_out(const Tensor& X, const Tensor& scale, const
     inv_variance_fe->set_output(true).set_data_type(get_fe_dtype(*rstd));
     Y_fe->set_output(true);
 
-    thread_local cudnnHandle_t handle = getCudnnHandle();
+    cudnnHandle_t handle = getCudnnHandle();
     TORCH_INTERNAL_ASSERT(layernorm_graph->validate().is_good());
     TORCH_INTERNAL_ASSERT(layernorm_graph->build_operation_graph(handle).is_good());
     TORCH_INTERNAL_ASSERT(layernorm_graph->create_execution_plans({fe::HeurMode_t::FALLBACK}).is_good());
@@ -203,7 +203,7 @@ void raw_cudnn_layernorm_forward_out(const Tensor& X, const Tensor& scale, const
     auto result = std::make_tuple(layernorm_graph, X_fe, mean_fe, inv_variance_fe, scale_fe, bias_fe, epsilon_fe, Y_fe);
     layernorm_forward_graph_cache.update(key, result);
   }
-  thread_local cudnnHandle_t handle = getCudnnHandle();
+  cudnnHandle_t handle = getCudnnHandle();
   size_t workspace_size = layernorm_graph->get_workspace_size();
   auto workspace_ptr = c10::cuda::CUDACachingAllocator::get()->allocate(workspace_size);
   TORCH_INTERNAL_ASSERT(!workspace_size || workspace_ptr);
@@ -268,7 +268,7 @@ void raw_cudnn_layernorm_backward_out(const Tensor& dY, const Tensor& X, const T
     DX_fe->set_output(true);
     dscale_fe->set_output(true).set_data_type(get_fe_dtype(*dgamma));
     dbias_fe->set_output(true).set_data_type(get_fe_dtype(*dbeta));
-    thread_local cudnnHandle_t handle = getCudnnHandle();
+    cudnnHandle_t handle = getCudnnHandle();
     TORCH_INTERNAL_ASSERT(layernorm_graph->validate().is_good());
     TORCH_INTERNAL_ASSERT(layernorm_graph->build_operation_graph(handle).is_good());
     TORCH_INTERNAL_ASSERT(layernorm_graph->create_execution_plans({fe::HeurMode_t::FALLBACK}).is_good());
@@ -287,7 +287,7 @@ void raw_cudnn_layernorm_backward_out(const Tensor& dY, const Tensor& X, const T
     auto result = std::make_tuple(layernorm_graph, X_fe, DY_fe, mean_fe, inv_variance_fe, scale_fe, dscale_fe, dbias_fe, DX_fe);
     layernorm_backward_graph_cache.update(key, result);
   }
-  thread_local cudnnHandle_t handle = getCudnnHandle();
+  cudnnHandle_t handle = getCudnnHandle();
   size_t workspace_size = layernorm_graph->get_workspace_size();
   auto workspace_ptr = c10::cuda::CUDACachingAllocator::get()->allocate(workspace_size);
   TORCH_INTERNAL_ASSERT(!workspace_size || workspace_ptr);
