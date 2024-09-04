@@ -177,7 +177,8 @@ void raw_cudnn_layernorm_forward_out(const Tensor& X, const Tensor& scale, const
                                     .set_name("epsilon")
                                     .set_dim({1, 1, 1, 1})
                                     .set_stride({1, 1, 1, 1})
-                                    .set_data_type(fe::DataType_t::FLOAT));
+                                    .set_data_type(fe::DataType_t::FLOAT)
+                                    .set_is_pass_by_value(true));
     auto layernorm_options =
         fe::graph::Layernorm_attributes().set_forward_phase(fe::NormFwdPhase_t::TRAINING).set_epsilon(epsilon_fe);
     auto [Y_fe, mean_fe, inv_variance_fe] = layernorm_graph->layernorm(X_fe, scale_fe, bias_fe, layernorm_options);
