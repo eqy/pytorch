@@ -138,17 +138,17 @@ void raw_cudnn_layernorm_forward_out(const Tensor& X, const Tensor& scale, const
   auto graph_and_tensors_forward_ptr = layernorm_forward_graph_cache.find(key);
   auto layernorm_graph = std::make_shared<fe::graph::Graph>();
   graph_and_tensors_forward graph_and_tensors_forward_values;
-  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack;
+  std::unordered_map<int64_t, void*> variant_pack;
   if (graph_and_tensors_forward_ptr) {
     auto [graph, X_fe, mean_fe, inv_variance_fe, scale_fe, bias_fe, epsilon_fe, Y_fe] = *graph_and_tensors_forward_ptr;
-    std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack_ = {
-      {X_fe, X.data_ptr()},
-      {mean_fe, mean->data_ptr()},
-      {inv_variance_fe, rstd->data_ptr()},
-      {scale_fe, scale.data_ptr()},
-      {bias_fe, bias.data_ptr()},
-      {epsilon_fe, &epsilon},
-      {Y_fe, Y->data_ptr()}};
+    std::unordered_map<int64_t, void*> variant_pack_ = {
+      {X_fe->get_uid(), X.data_ptr()},
+      {mean_fe->get_uid(), mean->data_ptr()},
+      {inv_variance_fe->get_uid(), rstd->data_ptr()},
+      {scale_fe->get_uid(), scale.data_ptr()},
+      {bias_fe->get_uid(), bias.data_ptr()},
+      {epsilon_fe->get_uid(), &epsilon},
+      {Y_fe->get_uid(), Y->data_ptr()}};
     variant_pack = std::move(variant_pack_);
     layernorm_graph = std::move(graph);
   } else {
@@ -177,7 +177,8 @@ void raw_cudnn_layernorm_forward_out(const Tensor& X, const Tensor& scale, const
                                     .set_name("epsilon")
                                     .set_dim({1, 1, 1, 1})
                                     .set_stride({1, 1, 1, 1})
-                                    .set_data_type(fe::DataType_t::FLOAT));
+                                    .set_data_type(fe::DataType_t::FLOAT)
+                                    .set_is_pass_by_value(true));
     auto layernorm_options =
         fe::graph::Layernorm_attributes().set_forward_phase(fe::NormFwdPhase_t::TRAINING).set_epsilon(epsilon_fe);
     auto [Y_fe, mean_fe, inv_variance_fe] = layernorm_graph->layernorm(X_fe, scale_fe, bias_fe, layernorm_options);
@@ -188,17 +189,17 @@ void raw_cudnn_layernorm_forward_out(const Tensor& X, const Tensor& scale, const
     cudnnHandle_t handle = getCudnnHandle();
     TORCH_INTERNAL_ASSERT(layernorm_graph->validate().is_good());
     TORCH_INTERNAL_ASSERT(layernorm_graph->build_operation_graph(handle).is_good());
-    TORCH_INTERNAL_ASSERT(layernorm_graph->create_execution_plans({fe::HeurMode_t::FALLBACK}).is_good());
+    TORCH_INTERNAL_ASSERT(layernorm_graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::FALLBACK}).is_good());
     TORCH_INTERNAL_ASSERT(layernorm_graph->check_support(handle).is_good(), layernorm_graph->check_support(handle).get_message());
     TORCH_INTERNAL_ASSERT(layernorm_graph->build_plans(handle).is_good());
-    std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack_ = {
-      {X_fe, X.data_ptr()},
-      {mean_fe, mean->data_ptr()},
-      {inv_variance_fe, rstd->data_ptr()},
-      {scale_fe, scale.data_ptr()},
-      {bias_fe, bias.data_ptr()},
-      {epsilon_fe, &epsilon},
-      {Y_fe, Y->data_ptr()}};
+    std::unordered_map<int64_t, void*> variant_pack_ = {
+      {X_fe->get_uid(), X.data_ptr()},
+      {mean_fe->get_uid(), mean->data_ptr()},
+      {inv_variance_fe->get_uid(), rstd->data_ptr()},
+      {scale_fe->get_uid(), scale.data_ptr()},
+      {bias_fe->get_uid(), bias.data_ptr()},
+      {epsilon_fe->get_uid(), &epsilon},
+      {Y_fe->get_uid(), Y->data_ptr()}};
     variant_pack = std::move(variant_pack_);
     auto result = std::make_tuple(layernorm_graph, X_fe, mean_fe, inv_variance_fe, scale_fe, bias_fe, epsilon_fe, Y_fe);
     layernorm_forward_graph_cache.update(key, result);
@@ -216,18 +217,18 @@ void raw_cudnn_layernorm_backward_out(const Tensor& dY, const Tensor& X, const T
   auto graph_and_tensors_backward_ptr = layernorm_backward_graph_cache.find(key);
   auto layernorm_graph = std::make_shared<fe::graph::Graph>();
   graph_and_tensors_backward graph_and_tensors_backward_values;
-  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack;
+  std::unordered_map<int64_t, void*> variant_pack;
   if (graph_and_tensors_backward_ptr) {
     auto [graph, X_fe, DY_fe, mean_fe, inv_variance_fe, scale_fe, dscale_fe, dbias_fe, DX_fe] = *graph_and_tensors_backward_ptr;
-    std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack_ = {
-      {X_fe, X.data_ptr()},
-      {DY_fe, dY.data_ptr()},
-      {mean_fe, mean.data_ptr()},
-      {inv_variance_fe, rstd.data_ptr()},
-      {scale_fe, gamma.data_ptr()},
-      {dscale_fe, dgamma->data_ptr()},
-      {dbias_fe, dbeta->data_ptr()},
-      {DX_fe, dX->data_ptr()}};
+    std::unordered_map<int64_t, void*> variant_pack_ = {
+      {X_fe->get_uid(), X.data_ptr()},
+      {DY_fe->get_uid(), dY.data_ptr()},
+      {mean_fe->get_uid(), mean.data_ptr()},
+      {inv_variance_fe->get_uid(), rstd.data_ptr()},
+      {scale_fe->get_uid(), gamma.data_ptr()},
+      {dscale_fe->get_uid(), dgamma->data_ptr()},
+      {dbias_fe->get_uid(), dbeta->data_ptr()},
+      {DX_fe->get_uid(), dX->data_ptr()}};
     variant_pack = std::move(variant_pack_);
     layernorm_graph = std::move(graph);
   } else {
@@ -271,18 +272,18 @@ void raw_cudnn_layernorm_backward_out(const Tensor& dY, const Tensor& X, const T
     cudnnHandle_t handle = getCudnnHandle();
     TORCH_INTERNAL_ASSERT(layernorm_graph->validate().is_good());
     TORCH_INTERNAL_ASSERT(layernorm_graph->build_operation_graph(handle).is_good());
-    TORCH_INTERNAL_ASSERT(layernorm_graph->create_execution_plans({fe::HeurMode_t::FALLBACK}).is_good());
+    TORCH_INTERNAL_ASSERT(layernorm_graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::FALLBACK}).is_good());
     TORCH_INTERNAL_ASSERT(layernorm_graph->check_support(handle).is_good(), layernorm_graph->check_support(handle).get_message());
     TORCH_INTERNAL_ASSERT(layernorm_graph->build_plans(handle).is_good());
-    std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack_ = {
-      {X_fe, X.data_ptr()},
-      {DY_fe, dY.data_ptr()},
-      {mean_fe, mean.data_ptr()},
-      {inv_variance_fe, rstd.data_ptr()},
-      {scale_fe, gamma.data_ptr()},
-      {dscale_fe, dgamma->data_ptr()},
-      {dbias_fe, dbeta->data_ptr()},
-      {DX_fe, dX->data_ptr()}};
+    std::unordered_map<int64_t, void*> variant_pack_ = {
+      {X_fe->get_uid(), X.data_ptr()},
+      {DY_fe->get_uid(), dY.data_ptr()},
+      {mean_fe->get_uid(), mean.data_ptr()},
+      {inv_variance_fe->get_uid(), rstd.data_ptr()},
+      {scale_fe->get_uid(), gamma.data_ptr()},
+      {dscale_fe->get_uid(), dgamma->data_ptr()},
+      {dbias_fe->get_uid(), dbeta->data_ptr()},
+      {DX_fe->get_uid(), dX->data_ptr()}};
     variant_pack = std::move(variant_pack_);
     auto result = std::make_tuple(layernorm_graph, X_fe, DY_fe, mean_fe, inv_variance_fe, scale_fe, dscale_fe, dbias_fe, DX_fe);
     layernorm_backward_graph_cache.update(key, result);
