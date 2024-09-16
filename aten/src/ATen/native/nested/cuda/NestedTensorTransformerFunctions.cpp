@@ -323,6 +323,41 @@ _scaled_dot_product_efficient_attention_nestedtensor_cuda(
   return std::make_tuple(std::move(attention), std::move(log_sumexp), std::move(seed), std::move(offset));
 }
 
+std::tuple<Tensor, Tensor, Tensor, Tensor, c10::SymInt, c10::SymInt, Tensor, Tensor, Tensor>
+_scaled_dot_product_cudnn_attention_nestedtensor_cuda( 
+    const Tensor& query,
+    const Tensor& key,
+    const Tensor& value,
+    const std::optional<Tensor>& attn_bias,
+    bool compute_logsumexp,
+    double dropout_p,
+    bool is_causal,
+    bool return_debug_mask,
+    std::optional<double> scale) {
+  auto [
+      query_buffer_reshaped,
+      key_buffer_reshaped,
+      value_buffer_reshaped,
+      cumulative_sequence_length_q,
+      cumulative_sequence_length_kv,
+      max_seqlen_batch_q,
+      max_seqlen_batch_kv,
+      output_shape] = preprocessing::sdpa_nested_preprocessing(query, key, value);
+  // (Tensor output, Tensor logsumexp, Tensor cum_seq_q, Tensor cum_seq_k, SymInt max_q, SymInt max_k, Tensor philox_seed, Tensor philox_offset, Tensor debug_attn_mask)
+
+  auto [attention, logsumexp, cum_seqlen_q, cum_seqlen_k, max_seqlen_q, max_seqlen_k, philox_seed, philox_offset, debug_attn_mask] = _scaled_dot_product_cudnn_attention(
+    query_buffer_reshaped,
+    key_buffer_reshaped,
+    value_buffer_reshaped,
+    std::nullopt,
+    compute_logsumexp,
+    dropout_p,
+    is_causal,
+    return_debug_mask,
+    scale);
+  return std::make_tuple(std::move(attention), std::move(logsumexp), cum_seqlen_q, cum_seqlen_k, max_seqlen_q, max_seqlen_k, philox_seed, philox_offset, debug_attn_mask);
+}
+
 std::tuple<at::Tensor, at::Tensor, at::Tensor> _scaled_dot_product_flash_attention_backward_nested(
     const at::Tensor& grad_out_,
     const at::Tensor& query,
