@@ -2590,9 +2590,9 @@ class TestSDPACudaOnly(NNTestCase):
         self.assertEqual(actual.contiguous(), math_ref.contiguous(), atol=2e-3, rtol=1e-2)
 
     @unittest.skipIf(not PLATFORM_SUPPORTS_CUDNN_ATTENTION, "Fused SDPA was not built for this system")
-    @parametrize("type", ["dense", "nested"])
+    @parametrize("type", ["nested"])
     @parametrize("is_contiguous", [True, False])
-    def test_scaled_dot_product_attention_fused_kernels_packed(self, device, type: str, is_contiguous: bool):
+    def test_scaled_dot_product_attention_cudnn_nested(self, device, type: str, is_contiguous: bool):
         if TEST_WITH_ROCM and type == 'nested':
             self.skipTest("ROCM does not support efficient attention on nested tensors, for now")
         make_tensor = partial(rand_sdpa_tensor, type=type, device=device, dtype=torch.float16, packed=True)

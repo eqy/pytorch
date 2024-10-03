@@ -570,7 +570,7 @@ bool can_use_cudnn_attention(const sdp_params& params, bool debug) {
   constexpr auto general_constraints =
       array_of<bool (*)(sdp_params const&, bool)>(
           check_runtime_disabled_cudnn,
-          check_for_nested_inputs,
+          // check_for_nested_inputs,
           check_nonzero_sequence_lengths_dense,
           check_last_dim_stride_equals_1_dense<true /*ignore_singleton_dim>*/>,
           check_all_tensors_on_device,
