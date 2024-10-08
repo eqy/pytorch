@@ -366,7 +366,9 @@ _scaled_dot_product_cudnn_attention_nestedtensor_cuda(
   // Key   (Batch x Num_heads x KV_seq_len x Dim_per_head)
   // Value (Batch x Num_heads x KV_seq_len x Dim_per_head)
   const int64_t batch_size = 1;//query.size(0);
-  const int64_t num_heads = query.size(-2);
+  const int64_t num_heads_q = query.size(-2);
+  const int64_t num_heads_k = key.size(-2);
+  const int64_t num_heads_v = value.size(-2);
   const int64_t head_dim_qk = query.size(-1);
   const int64_t head_dim_v = value.size(-1);
   auto attn_bias_ = attn_bias;
@@ -404,14 +406,16 @@ _scaled_dot_product_cudnn_attention_nestedtensor_cuda(
     // if using dropout, we produce 1 random number for each element of the
     // attention tensor
     // TODO(eqy): should state be advanced per thread (local) amount or per call/launch (global) amount
-    philox_state = gen->philox_cuda_state(batch_size * num_heads * max_seqlen_batch_q * max_seqlen_batch_kv);
+    philox_state = gen->philox_cuda_state(batch_size * num_heads_q * max_seqlen_batch_q * max_seqlen_batch_kv);
     at::cuda::philox::unpack_cudnn_wrapper(philox_state, static_cast<int64_t*>(cudnn_seed.data_ptr()), static_cast<int64_t*>(cudnn_offset.data_ptr()), at::cuda::getCurrentCUDAStream());
   }
 
   const auto softmax_scale = sdp::calculate_scale(query, scale).as_float_unchecked();
 
   run_cudnn_SDP_fprop_nestedtensor(batch_size/*int64_t b*/,
-                                   num_heads/*int64_t h*/,
+                                   num_heads_q/*int64_t h*/,
+				   num_heads_k,
+				   num_heads_v,
                                    max_seqlen_batch_q/*int64_t s_q*/,
                                    max_seqlen_batch_kv/*int64_t s_kv*/,
                                    head_dim_qk/*int64_t d_qk*/,
