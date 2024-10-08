@@ -572,7 +572,6 @@ bool can_use_cudnn_attention(const sdp_params& params, bool debug) {
           check_runtime_disabled_cudnn,
           // check_for_nested_inputs,
           check_nonzero_sequence_lengths_dense,
-          check_last_dim_stride_equals_1_dense<true /*ignore_singleton_dim>*/>,
           check_all_tensors_on_device,
           check_tensor_shapes,
           check_cudnn_tensor_shapes,
@@ -585,6 +584,18 @@ bool can_use_cudnn_attention(const sdp_params& params, bool debug) {
   for (auto& constraint : general_constraints) {
     if (!constraint(params, debug)) {
       return false;
+    }
+  }
+  constexpr auto dense_constraints = 
+      array_of<bool (*)(sdp_params const&, bool)>(
+      check_last_dim_stride_equals_1_dense<true /*ignore_singleton_dim=*/>
+  );
+
+  if (has_only_dense_inputs(params)) {
+    for (auto& constraint : dense_constraints) {
+      if (!constraint(params, debug)) {
+        return false;
+      }
     }
   }
   return true;
