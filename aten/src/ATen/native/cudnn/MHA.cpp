@@ -552,13 +552,6 @@ void run_cudnn_SDP_fprop(
     Tensor& dropoutseed,
     Tensor& dropoutoffset) {
   cudnnHandle_t handle = getCudnnHandle();
-  if (q.is_nested()) {
-    TORCH_WARN("nested");
-    TORCH_WARN(q.layout());
-    //TORCH_WARN(q.strides());
-    TORCH_WARN(at::native::_nested_tensor_strides(q));
-  }
-
   if (!o.defined()) {
     o = at::empty({b, h, s_q, d_v}, q.options());
   }
@@ -638,6 +631,36 @@ void run_cudnn_SDP_fprop(
   TORCH_CHECK(
       mha_graph->execute(handle, variant_pack, workspace_ptr.get()).is_good());
   mhagraphcache.update(key, graph_and_tensors_values);
+}
+
+void run_cudnn_SDP_fprop_nestedtensor(
+    int64_t b,
+    int64_t h,
+    int64_t s_q,
+    int64_t s_kv,
+    int64_t d_qk,
+    int64_t d_v,
+    float scaling_factor,
+    bool return_softmaxstats,
+    bool is_causal,
+    double dropout_probability,
+    const Tensor& cum_seqlen_q,
+    const Tensor& cum_seqlen_kv,
+    const Tensor& output_shape,
+    const Tensor& q,
+    const Tensor& k,
+    const Tensor& v,
+    const std::optional<Tensor>& attn_bias,
+    Tensor& softmaxstats,
+    Tensor& o,
+    Tensor& dropoutseed,
+    Tensor& dropoutoffset) {
+  cudnnHandle_t handle = getCudnnHandle();
+  TORCH_WARN("o is defined? ", o.defined());
+  TORCH_WARN(" output shape? ", output_shape)
+  TORCH_WARN("q strides?", at::native::_nested_tensor_strides(q));
+  TORCH_CHECK(false);
+
 }
 
 void run_cudnn_SDP_bprop(

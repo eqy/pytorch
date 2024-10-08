@@ -410,24 +410,27 @@ _scaled_dot_product_cudnn_attention_nestedtensor_cuda(
 
   const auto softmax_scale = sdp::calculate_scale(query, scale).as_float_unchecked();
 
-  run_cudnn_SDP_fprop(batch_size/*int64_t b*/,
-                      num_heads/*int64_t h*/,
-                      max_seqlen_batch_q/*int64_t s_q*/,
-                      max_seqlen_batch_kv/*int64_t s_kv*/,
-                      head_dim_qk/*int64_t d_qk*/,
-                      head_dim_v/*int64_t d_v*/,
-                      softmax_scale/*float scaling_factor*/,
-                      compute_logsumexp/* bool */,
-                      is_causal/* bool */,
-                      dropout_p/*double dropout_probability*/,
-                      query/* Tensor q*/,
-                      key/* Tensor k*/,
-                      value/* Tensor v*/,
-                      attn_bias_ /* std::optional<Tensor> */,
-                      log_sumexp/*Tensor softmaxstats*/,
-                      attention/*Tensor o*/,
-                      cudnn_seed/*Tensor dropoutseed*/,
-                      cudnn_offset/*Tensor dropoutoffset*/);
+  run_cudnn_SDP_fprop_nestedtensor(batch_size/*int64_t b*/,
+                                   num_heads/*int64_t h*/,
+                                   max_seqlen_batch_q/*int64_t s_q*/,
+                                   max_seqlen_batch_kv/*int64_t s_kv*/,
+                                   head_dim_qk/*int64_t d_qk*/,
+                                   head_dim_v/*int64_t d_v*/,
+                                   softmax_scale/*float scaling_factor*/,
+                                   compute_logsumexp/* bool */,
+                                   is_causal/* bool */,
+                                   dropout_p/*double dropout_probability*/,
+				   cumulative_sequence_length_q,
+				   cumulative_sequence_length_kv,
+				   output_shape,
+                                   query/* Tensor q*/,
+                                   key/* Tensor k*/,
+                                   value/* Tensor v*/,
+                                   attn_bias_ /* std::optional<Tensor> */,
+                                   log_sumexp/*Tensor softmaxstats*/,
+                                   attention/*Tensor o*/,
+                                   cudnn_seed/*Tensor dropoutseed*/,
+                                   cudnn_offset/*Tensor dropoutoffset*/);
 
   // TODO(eqy): support debug_attn_mask
   return std::make_tuple(std::move(attention), std::move(log_sumexp), cumulative_sequence_length_q, cumulative_sequence_length_kv, max_seqlen_batch_q, max_seqlen_batch_kv, std::move(cudnn_seed), std::move(cudnn_offset), Tensor());
