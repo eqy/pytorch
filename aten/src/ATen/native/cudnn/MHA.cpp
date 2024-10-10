@@ -529,15 +529,16 @@ auto build_graph_and_tensors_nestedtensor(
   O->set_ragged_offset(RAG_O_OFF); 
   if (Stats) {
     Stats->set_output(true).set_data_type(fe::DataType_t::FLOAT);
+    Stats->set_ragged_offset(RAG_STATS_OFF);
   }
-  Stats->set_ragged_offset(RAG_STATS_OFF);
-
+  TORCH_WARN("START VALIDATE");
   AT_CUDNN_FRONTEND_CHECK(mha_graph->validate());
   AT_CUDNN_FRONTEND_CHECK(mha_graph->build_operation_graph(handle));
   AT_CUDNN_FRONTEND_CHECK(
       mha_graph->create_execution_plans({fe::HeurMode_t::A}));
   AT_CUDNN_FRONTEND_CHECK(mha_graph->check_support(handle));
   AT_CUDNN_FRONTEND_CHECK(mha_graph->build_plans(handle));
+  TORCH_WARN("FINISH BUILD PLAN??");
   TORCH_CHECK(false);
   return std::make_tuple(
       std::move(mha_graph),
@@ -800,7 +801,6 @@ void run_cudnn_SDP_fprop_nestedtensor(
   TORCH_WARN("o is defined? ", o.defined());
   TORCH_WARN(" output shape? ", output_shape)
   TORCH_WARN("q strides?", at::native::_nested_tensor_strides(q));
-  TORCH_CHECK(false);
 
   // do nothing if we got 0-element tensors
   if (!q.numel() || !k.numel() || !v.numel()) {
