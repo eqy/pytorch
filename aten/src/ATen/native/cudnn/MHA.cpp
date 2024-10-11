@@ -531,15 +531,12 @@ auto build_graph_and_tensors_nestedtensor(
     Stats->set_output(true).set_data_type(fe::DataType_t::FLOAT);
     Stats->set_ragged_offset(RAG_STATS_OFF);
   }
-  TORCH_WARN("START VALIDATE");
   AT_CUDNN_FRONTEND_CHECK(mha_graph->validate());
   AT_CUDNN_FRONTEND_CHECK(mha_graph->build_operation_graph(handle));
   AT_CUDNN_FRONTEND_CHECK(
       mha_graph->create_execution_plans({fe::HeurMode_t::A}));
   AT_CUDNN_FRONTEND_CHECK(mha_graph->check_support(handle));
   AT_CUDNN_FRONTEND_CHECK(mha_graph->build_plans(handle));
-  TORCH_WARN("FINISH BUILD PLAN??");
-  TORCH_CHECK(false);
   return std::make_tuple(
       std::move(mha_graph),
       std::move(Q),
@@ -550,8 +547,13 @@ auto build_graph_and_tensors_nestedtensor(
       std::move(seed),
       std::move(offset),
       std::move(O),
-      std::move(Stats));
-
+      std::move(Stats),
+      std::move(RAG_Q_OFF), 
+      std::move(RAG_K_OFF),
+      std::move(RAG_V_OFF),
+      std::move(RAG_O_OFF),
+      std::move(RAG_STATS_OFF)      
+      );
 }
 
 auto build_graph_and_tensors_backward(
@@ -798,15 +800,31 @@ void run_cudnn_SDP_fprop_nestedtensor(
     Tensor& dropoutseed,
     Tensor& dropoutoffset) {
   cudnnHandle_t handle = getCudnnHandle();
-  TORCH_WARN("o is defined? ", o.defined());
-  TORCH_WARN(" output shape? ", output_shape)
-  TORCH_WARN("q strides?", at::native::_nested_tensor_strides(q));
 
   // do nothing if we got 0-element tensors
   if (!q.numel() || !k.numel() || !v.numel()) {
     return;
   }
 
+  if (!o.defined()) {
+    o = at::empty({q.size(1), h_q, d_v}, q.options());
+  }
+
+  auto [mha_graph,
+        Q,
+        K,
+        V,
+        bias,
+        attn_scale,
+        seed,
+        offset,
+        O,
+        Stats,
+        RAG_Q_OFF, 
+        RAG_K_OFF,
+        RAG_V_OFF,
+        RAG_O_OFF,
+        RAG_STATS_OFF] = 
   build_graph_and_tensors_nestedtensor(
     b,
     h_q,
@@ -832,7 +850,7 @@ void run_cudnn_SDP_fprop_nestedtensor(
     dropoutseed,
     dropoutoffset,
     handle);
-
+  TORCH_WARN("BUILT GRAPH??");
   TORCH_CHECK(false);
 }
 
