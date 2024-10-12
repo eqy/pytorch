@@ -457,7 +457,7 @@ auto build_graph_and_tensors_nestedtensor(
                                       .set_data_type(fe::DataType_t::INT32));
   auto scaled_dot_product_flash_attention_options =
       fe::graph::SDPA_attributes()
-          .set_name("CUDNN_SDPA")
+          .set_name("CUDNN_SDPA_NESTEDTENSOR")
           .set_is_inference(return_softmaxstats == false)
           .set_causal_mask(is_causal)
           .set_attn_scale(attn_scale)
@@ -496,27 +496,27 @@ auto build_graph_and_tensors_nestedtensor(
   }
   auto RAG_Q_OFF = mha_graph->tensor(fe::graph::Tensor_attributes()
                                      .set_name("Seq_q")
-                                     .set_dim({b, 1, 1, 1})
+                                     .set_dim({b + 1, 1, 1, 1})
                                      .set_stride({1, 1, 1, 1})
                                      .set_data_type(fe::DataType_t::INT32));
   auto RAG_K_OFF = mha_graph->tensor(fe::graph::Tensor_attributes()
                                       .set_name("Seq_k")
-                                      .set_dim({b, 1, 1, 1})
+                                      .set_dim({b + 1, 1, 1, 1})
                                       .set_stride({1, 1, 1, 1})
                                       .set_data_type(fe::DataType_t::INT32));
   auto RAG_V_OFF = mha_graph->tensor(fe::graph::Tensor_attributes()
                                      .set_name("Seq_v")
-                                     .set_dim({b, 1, 1, 1})
+                                     .set_dim({b + 1, 1, 1, 1})
                                      .set_stride({1, 1, 1, 1})
                                      .set_data_type(fe::DataType_t::INT32));
   auto RAG_O_OFF = mha_graph->tensor(fe::graph::Tensor_attributes()
                                       .set_name("Seq_o")
-                                      .set_dim({b, 1, 1, 1})
+                                      .set_dim({b + 1, 1, 1, 1})
                                       .set_stride({1, 1, 1, 1})
                                       .set_data_type(fe::DataType_t::INT32));
   auto RAG_STATS_OFF = mha_graph->tensor(fe::graph::Tensor_attributes()
                                       .set_name("Seq_o")
-                                      .set_dim({b, 1, 1, 1})
+                                      .set_dim({b + 1, 1, 1, 1})
                                       .set_stride({1, 1, 1, 1})
                                       .set_data_type(fe::DataType_t::INT32));
   Q->set_ragged_offset(RAG_Q_OFF);
@@ -525,7 +525,8 @@ auto build_graph_and_tensors_nestedtensor(
   auto [O, Stats] =
       mha_graph->sdpa(Q, K, V, scaled_dot_product_flash_attention_options);
   //O->set_output(true).set_dim(o.sizes().vec()).set_stride(o.strides().vec());
-  O->set_output(true).set_dim({b, s_q, h_q, d_v}).set_stride({s_q * h_q * d_v, h_q * d_v, d_v, 1});
+  // O->set_output(true).set_dim({b, s_q, h_q, d_v}).set_stride({s_q * h_q * d_v, h_q * d_v, d_v, 1});
+  O->set_output(true).set_dim({b, s_q, h_q, d_v}).set_stride({s_q * h_q, h_q * d_v, h_q, 1});
   O->set_ragged_offset(RAG_O_OFF); 
   if (Stats) {
     Stats->set_output(true).set_data_type(fe::DataType_t::FLOAT);
@@ -851,6 +852,35 @@ void run_cudnn_SDP_fprop_nestedtensor(
     dropoutoffset,
     handle);
   TORCH_WARN("BUILT GRAPH??");
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*>
+      variant_pack = {
+          {Q, q.data_ptr()},
+          {K, k.data_ptr()},
+          {V, v.data_ptr()},
+          {attn_scale, &scaling_factor},
+          {seed, dropoutseed.data_ptr()},
+          {offset, dropoutoffset.data_ptr()},
+          {O, o.data_ptr()},
+          {RAG_Q_OFF, cum_seqlen_q.data_ptr()},
+          {RAG_O_OFF, cum_seqlen_q.data_ptr()},
+          {RAG_K_OFF, cum_seqlen_kv.data_ptr()},
+          {RAG_V_OFF, cum_seqlen_kv.data_ptr()}};
+  if (return_softmaxstats) {
+    TORCH_WARN("STATS");
+    variant_pack[Stats] = softmaxstats.data_ptr();
+    variant_pack[RAG_STATS_OFF] =  cum_seqlen_q.data_ptr();
+  }
+  if (attn_bias.has_value()) {
+     TORCH_CHECK("bias not supported with nestedtensor");
+  }
+  TORCH_WARN(" SCALAR TYPES?? ", cum_seqlen_q.scalar_type(), " ", cum_seqlen_kv.scalar_type());
+  TORCH_WARN(cum_seqlen_q);
+  auto workspace_size = mha_graph->get_workspace_size();
+  auto workspace_ptr =
+      c10::cuda::CUDACachingAllocator::get()->allocate(workspace_size);
+  TORCH_CHECK(
+      mha_graph->execute(handle, variant_pack, workspace_ptr.get()).is_good());
+
   TORCH_CHECK(false);
 }
 
