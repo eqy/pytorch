@@ -529,7 +529,7 @@ auto build_graph_and_tensors_nestedtensor(
   O->set_output(true).set_dim({b, s_q, h_q, d_v}).set_stride({s_q * h_q, h_q * d_v, h_q, 1});
   O->set_ragged_offset(RAG_O_OFF); 
   if (Stats) {
-    Stats->set_output(true).set_data_type(fe::DataType_t::FLOAT);
+    Stats->set_output(true).set_data_type(fe::DataType_t::FLOAT).set_dim({b, h_q, s_q, 1}).set_stride({s_q * h_q * d_v, d_v, h_q * d_v, 1});
     Stats->set_ragged_offset(RAG_STATS_OFF);
   }
   AT_CUDNN_FRONTEND_CHECK(mha_graph->validate());
@@ -809,6 +809,11 @@ void run_cudnn_SDP_fprop_nestedtensor(
 
   if (!o.defined()) {
     o = at::empty({q.size(1), h_q, d_v}, q.options());
+  }
+
+  if (return_softmaxstats && !softmaxstats.defined()) {
+    softmaxstats = at::empty({q.size(1), h_q, 1}, q.options().dtype(kFloat));
+
   }
 
   auto [mha_graph,
