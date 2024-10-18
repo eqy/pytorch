@@ -362,13 +362,11 @@ _scaled_dot_product_cudnn_attention_nestedtensor_cuda(
   //
   // C10_LOG_API_USAGE_ONCE("torch.sdpa.flash_attention_cudnn");
   // TODO(eqy): debug mask support
-  // Query (Batch x Num_heads x Q_seq_len  x Dim_per_head)
-  // Key   (Batch x Num_heads x KV_seq_len x Dim_per_head)
-  // Value (Batch x Num_heads x KV_seq_len x Dim_per_head)
-  const int64_t batch_size = 1;//query.size(0);
-  const int64_t num_heads_q = query.size(-2);
-  const int64_t num_heads_k = key.size(-2);
-  const int64_t num_heads_v = value.size(-2);
+  // BHSD ...
+  const int64_t batch_size = query.size(0);
+  const int64_t num_heads_q = query.size(-3);
+  const int64_t num_heads_k = key.size(-3);
+  const int64_t num_heads_v = value.size(-3);
   const int64_t head_dim_qk = query.size(-1);
   const int64_t head_dim_v = value.size(-1);
   auto attn_bias_ = attn_bias;
@@ -435,8 +433,9 @@ _scaled_dot_product_cudnn_attention_nestedtensor_cuda(
                                    attention/*Tensor o*/,
                                    cudnn_seed/*Tensor dropoutseed*/,
                                    cudnn_offset/*Tensor dropoutoffset*/);
-
-  // TODO(eqy): support debug_attn_mask
+  TORCH_WARN("OUTPUT SHAPE", output_shape)
+  attention = wrap_buffer(attention.view(-1), output_shape).transpose(1, 2);
+  TORCH_WARN("OUTPUT ATTN SHAPE",  get_nested_tensor_impl(attention)->get_nested_sizes());
   return std::make_tuple(std::move(attention), std::move(log_sumexp), cumulative_sequence_length_q, cumulative_sequence_length_kv, max_seqlen_batch_q, max_seqlen_batch_kv, std::move(cudnn_seed), std::move(cudnn_offset), Tensor());
 }
 

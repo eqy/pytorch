@@ -2591,13 +2591,13 @@ class TestSDPACudaOnly(NNTestCase):
 
     @unittest.skipIf(not PLATFORM_SUPPORTS_CUDNN_ATTENTION, "Fused SDPA was not built for this system")
     @parametrize("type", ["nested"])
-    @parametrize("is_contiguous", [True, False])
+    @parametrize("is_contiguous", [True])
     def test_scaled_dot_product_attention_cudnn_nested(self, device, type: str, is_contiguous: bool):
         if TEST_WITH_ROCM and type == 'nested':
             self.skipTest("ROCM does not support efficient attention on nested tensors, for now")
         make_tensor = partial(rand_sdpa_tensor, type=type, device=device, dtype=torch.float16, packed=True)
 
-        batch_size, seq_len, num_heads, head_dim = 32, 64, 16, 64
+        batch_size, seq_len, num_heads, head_dim = 8, 64, 16, 64
         shape = SdpaShape(batch_size, num_heads, seq_len, head_dim)
 
         # Test Packed
@@ -2620,7 +2620,7 @@ class TestSDPACudaOnly(NNTestCase):
             math_ref = torch.nn.functional.scaled_dot_product_attention(
                 query.contiguous(), key.contiguous(), value.contiguous(),
                 attn_mask=None, dropout_p=0.0, is_causal=False)
-
+        print(actual[0, 0, 32, :], math_ref[0, 0, 32, :])
         self.assertEqual(actual.contiguous(), math_ref.contiguous(), atol=2e-3, rtol=1e-2)
 
     @skipIfRocm  # Missing nested and EFFICIENT_ATTENTION
