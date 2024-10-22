@@ -560,6 +560,11 @@ bool can_use_cudnn_attention(const sdp_params& params, bool debug) {
   }
   return false;
 #endif
+static bool ikwiad = c10::utils::check_env("TORCH_CUDNN_SDPA_IKWIAD") == true;
+if (ikwiad) {
+  TORCH_WARN_ONCE("You are running cuDNN SDPA in \"I know what I am doing.\" mode. All constraints checks are disabled.");
+  return true;
+}
   // Define gate functions that determine if a flash kernel can be ran
   // Replace with std::to_array when we migrate to c++20
   constexpr auto general_constraints =
