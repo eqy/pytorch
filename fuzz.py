@@ -1,7 +1,6 @@
 import torch
 import torch.nn.functional as F
 from torch.nn.attention import sdpa_kernel, SDPBackend
-import numpy as np
 
 # https://stackoverflow.com/questions/6800193/what-is-the-most-efficient-way-of-finding-all-the-factors-of-a-number-in-python
 from functools import reduce
@@ -41,8 +40,8 @@ while True:
     high_hq = int(min(MAX_HEAD, MAX_ELEM/(b*s_q)) + 1)
     h_q = torch.randint(low=MIN_HEAD, high=high_hq, size=(1,)).item()
     h_kv_choices = list(factors(h_q))
-    h_k = np.random.choice(h_kv_choices)
-    h_v = np.random.choice(h_kv_choices)
+    h_k = h_kv_choices[torch.randint(low=0, high=len(h_kv_choices), size=(1,)).item()]
+    h_v = h_kv_choices[torch.randint(low=0, high=len(h_kv_choices), size=(1,)).item()]
     high_dqk = int(min(MAX_DQK, MAX_ELEM/(b*s_q*h_q), MAX_ELEM/(b*s_kv*h_k))//MIN_DMOD) + 1
     high_dv = int(min(MAX_DV, MAX_ELEM/(b*s_kv*h_v))//MIN_DMOD) + 1
     if high_dqk <= MIN_DQK or high_dv <= MIN_DV:
@@ -53,17 +52,11 @@ while True:
     if out_numel > MAX_ELEM:
         continue
     i += 1
-    q_dim_order = [0, 1, 2]
-    k_dim_order = [0, 1, 2]
-    v_dim_order = [0, 1, 2]
-    np.random.shuffle(q_dim_order)
-    np.random.shuffle(k_dim_order)
-    np.random.shuffle(v_dim_order)
-    q_permute = q_dim_order + [3]
+    q_permute = list(torch.randperm(3)) + [3]
     q_reverse = [q_permute.index(i) for i in range(4)]
-    k_permute = k_dim_order + [3]
+    k_permute = list(torch.randperm(3)) + [3]
     k_reverse = [k_permute.index(i) for i in range(4)]
-    v_permute = v_dim_order + [3]
+    v_permute = list(torch.randperm(3)) + [3]
     v_reverse = [v_permute.index(i) for i in range(4)]
 
     print(f"GPU: {device} case: {i}\n"
