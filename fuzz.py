@@ -58,12 +58,17 @@ while True:
     k_reverse = [k_permute.index(i) for i in range(4)]
     v_permute = list(torch.randperm(3)) + [3]
     v_reverse = [v_permute.index(i) for i in range(4)]
+    use_dropout = torch.randint(low=0, high=2, size=(1,)).item() == 1
+    dropout_p = 0.0
+    if use_dropout:
+      dropout_p = torch.rand(1).item()
 
     print(f"GPU: {device} case: {i}\n"
         f"Q {[b, h_q, s_q, d_qk]} numel {b*s_q*h_q*d_qk} layout {q_permute}\n"
         f"K {[b, h_k, s_kv, d_qk]} numel {b*s_kv*h_k*d_qk} layout {k_permute}\n"
         f"V {[b, h_v, s_kv, d_v]} numel {b*s_kv*h_v*d_v} layout {v_permute}\n"
-        f"O {[b, h_q, s_q, d_v]} numel {out_numel}\r")
+        f"O {[b, h_q, s_q, d_v]} numel {out_numel}\n"
+        f"dropout p: {dropout_p}\r")
    
     qfillshape = [[b, h_q, s_q, d_qk][idx] for idx in q_permute]
     kfillshape = [[b, h_k, s_kv, d_qk][idx] for idx in k_permute]
@@ -71,8 +76,14 @@ while True:
     q = torch.randn(qfillshape, dtype=torch.half, device=f'cuda:{device}', requires_grad=True).permute(q_reverse)
     k = torch.randn(kfillshape, dtype=torch.half, device=f'cuda:{device}', requires_grad=True).permute(k_reverse)
     v = torch.randn(vfillshape, dtype=torch.half, device=f'cuda:{device}', requires_grad=True).permute(v_reverse)
-    with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
-        out = F.scaled_dot_product_attention(q, k, v).sum().backward()
-    with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
-        out = F.scaled_dot_product_attention(q, k, v, is_causal=True).sum().backward()
+
+
+    try:
+        with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
+            out = F.scaled_dot_product_attention(q, k, v, dropout_p=dropout_p).sum().backward()
+        with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
+            out = F.scaled_dot_product_attention(q, k, v, is_causal=True, dropout_p=dropout_p).sum().backward()
+    except torch.OutOfMemoryError as e:
+        print("hit OOM, assuming it was a cuDNN workspace...")
+        continue
 
