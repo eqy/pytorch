@@ -24,6 +24,7 @@ MIN_DMOD = 8
 MIN_DV = 1
 MAX_DV = 128
 MAX_ELEM = 2**29
+CHECK_FP32REF = True
 
 i = 0
 num_gpus = torch.cuda.device_count()
@@ -63,22 +64,69 @@ while True:
     if use_dropout:
       dropout_p = torch.rand(1).item()
 
+    grad_permute = list(torch.randperm(3)) + [3]
+    grad_reverse = [grad_permute.index(i) for i in range(4)]
+
+
     print(f"GPU: {device} case: {i}\n"
         f"Q {[b, h_q, s_q, d_qk]} numel {b*s_q*h_q*d_qk} layout {q_permute}\n"
         f"K {[b, h_k, s_kv, d_qk]} numel {b*s_kv*h_k*d_qk} layout {k_permute}\n"
         f"V {[b, h_v, s_kv, d_v]} numel {b*s_kv*h_v*d_v} layout {v_permute}\n"
         f"O {[b, h_q, s_q, d_v]} numel {out_numel}\n"
+        f"dO {[b, h_q, s_q, d_v]} numel {out_numel} layout {grad_permute}\n"
         f"dropout p: {dropout_p}\r")
    
     qfillshape = [[b, h_q, s_q, d_qk][idx] for idx in q_permute]
     kfillshape = [[b, h_k, s_kv, d_qk][idx] for idx in k_permute]
     vfillshape = [[b, h_v, s_kv, d_v][idx] for idx in v_permute]
-    q = torch.randn(qfillshape, dtype=torch.half, device=f'cuda:{device}', requires_grad=True).permute(q_reverse)
-    k = torch.randn(kfillshape, dtype=torch.half, device=f'cuda:{device}', requires_grad=True).permute(k_reverse)
-    v = torch.randn(vfillshape, dtype=torch.half, device=f'cuda:{device}', requires_grad=True).permute(v_reverse)
+    q = torch.randn(qfillshape, dtype=torch.half, device=f'cuda:{device}', requires_grad=True).permute(q_reverse).detach()
+    q.requires_grad=True
+    k = torch.randn(kfillshape, dtype=torch.half, device=f'cuda:{device}', requires_grad=True).permute(k_reverse).detach()
+    k.requires_grad=True
+    v = torch.randn(vfillshape, dtype=torch.half, device=f'cuda:{device}', requires_grad=True).permute(v_reverse).detach()
+    v.requires_grad=True
+    assert q.is_leaf
+    assert k.is_leaf
+    assert v.is_leaf
 
+    grad_outputfillshape = [[b, h_q, s_q, d_v][idx] for idx in grad_permute]
+    grad_output = torch.randn(grad_outputfillshape, dtype=torch.half, device=f'cuda:{device}').permute(grad_reverse)
 
+    ref_ok = False
     try:
+        if CHECK_FP32REF:
+          q_ref = q.detach().float()
+          k_ref = k.detach().float()
+          v_ref = v.detach().float()
+          q_ref.requires_grad=True
+          k_ref.requires_grad=True
+          v_ref.requires_grad=True
+          print(q_ref.shape, k_ref.shape, v_ref.shape) 
+          out_ref = F.scaled_dot_product_attention(q_ref, k_ref, v_ref, enable_gqa=True)
+          grad_output_ref = grad_output.float()
+          out_ref.backward(grad_output_ref)
+          ref_ok = True
+    except torch.OutOfMemoryError as e:
+        print("hit OOM while trying to compute ref...")
+        
+    try: 
+        if CHECK_FP32REF and ref_ok:
+            with sdpa_kernel(SDPBackend.CUDNN_ATTENTION): 
+                assert q.is_leaf
+                assert k.is_leaf
+                assert v.is_leaf
+                out = F.scaled_dot_product_attention(q, k, v)
+                torch.testing.assert_close(out, out_ref.half(), atol=1e-3, rtol=1e-3)
+                out.backward(grad_output)
+                assert k.grad is not None
+                assert v.grad is not None
+                assert q.grad is not None
+                assert q_ref.grad is not None
+
+                torch.testing.assert_close(q.grad, q_ref.grad.half(), atol=1e-3, rtol=1e-3)
+                torch.testing.assert_close(k.grad, k_ref.grad.half(), atol=1e-3, rtol=1e-3)
+                torch.testing.assert_close(v.grad, v_ref.grad.half(), atol=1e-3, rtol=1e-3)
+
         with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
             out = F.scaled_dot_product_attention(q, k, v, dropout_p=dropout_p).sum().backward()
         with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
