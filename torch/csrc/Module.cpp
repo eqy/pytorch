@@ -694,61 +694,55 @@ static PyObject* THPModule_float32MatmulPrecision(
 static PyObject* THPModule_setSDPUseFlash(PyObject* _unused, PyObject* arg) {
   HANDLE_TH_ERRORS
   TORCH_CHECK(
-      PyBool_Check(arg),
-      "set_sdp_use_math expects a bool, "
+      THPUtils_checkLong(arg),
+      "set_sdp_use_flash expects an int, "
       "but got ",
       THPUtils_typename(arg));
-  at::globalContext().setSDPUseFlash(arg == Py_True);
+  int e = THPUtils_unpackLong(arg);
+  at::globalContext().setSDPUseFlash(e);
   Py_RETURN_NONE;
   END_HANDLE_TH_ERRORS
 }
 static PyObject* THPModule_userEnabledFlashSDP(
     PyObject* _unused,
     PyObject* noargs) {
-  if (at::globalContext().userEnabledFlashSDP())
-    Py_RETURN_TRUE;
-  else
-    Py_RETURN_FALSE;
+  return THPUtils_packInt64(at::globalContext().userEnabledFlashSDP());
 }
 static PyObject* THPModule_setSDPUseMemEfficient(
     PyObject* _unused,
     PyObject* arg) {
   HANDLE_TH_ERRORS
   TORCH_CHECK(
-      PyBool_Check(arg),
-      "set_sdp_use_math expects a bool, "
+      THPUtils_checkLong(arg),
+      "set_sdp_use_mem_effficient expects an int, "
       "but got ",
       THPUtils_typename(arg));
-  at::globalContext().setSDPUseMemEfficient(arg == Py_True);
+  int e = THPUtils_unpackLong(arg);
+  at::globalContext().setSDPUseMemEfficient(e);
   Py_RETURN_NONE;
   END_HANDLE_TH_ERRORS
 }
 static PyObject* userEnabledMemEfficientSDP(
     PyObject* _unused,
     PyObject* noargs) {
-  if (at::globalContext().userEnabledMemEfficientSDP())
-    Py_RETURN_TRUE;
-  else
-    Py_RETURN_FALSE;
+  return THPUtils_packInt64(at::globalContext().userEnabledMemEfficientSDP());
 }
 static PyObject* THPModule_setSDPUseMath(PyObject* _unused, PyObject* arg) {
   HANDLE_TH_ERRORS
   TORCH_CHECK(
-      PyBool_Check(arg),
-      "set_sdp_use_math expects a bool, "
+      THPUtils_checkLong(arg),
+      "set_sdp_use_math expects an int, "
       "but got ",
       THPUtils_typename(arg));
-  at::globalContext().setSDPUseMath(arg == Py_True);
+  int e = THPUtils_unpackLong(arg);
+  at::globalContext().setSDPUseMath(e);
   Py_RETURN_NONE;
   END_HANDLE_TH_ERRORS
 }
 static PyObject* THPModule_userEnabledMathSDP(
     PyObject* _unused,
     PyObject* noargs) {
-  if (at::globalContext().userEnabledMathSDP())
-    Py_RETURN_TRUE;
-  else
-    Py_RETURN_FALSE;
+  return THPUtils_packInt64(at::globalContext().userEnabledMathSDP());
 }
 static PyObject* THPModule_setAllowFP16BF16ReductionMathSDP(
     PyObject* _unused,
@@ -795,21 +789,19 @@ static PyObject* THPModule_userEnabledOverrideableSDP(
 static PyObject* THPModule_setSDPUseCuDNN(PyObject* _unused, PyObject* arg) {
   HANDLE_TH_ERRORS
   TORCH_CHECK(
-      PyBool_Check(arg),
-      "set_sdp_use_cudnn expects a bool, "
+      THPUtils_checkLong(arg),
+      "set_sdp_use_cudnn expects an int, "
       "but got %s",
       THPUtils_typename(arg));
-  at::globalContext().setSDPUseCuDNN(arg == Py_True);
+  int e = THPUtils_unpackLong(arg);
+  at::globalContext().setSDPUseCuDNN(e);
   Py_RETURN_NONE;
   END_HANDLE_TH_ERRORS
 }
 static PyObject* THPModule_userEnabledCuDNNSDP(
     PyObject* _unused,
     PyObject* noargs) {
-  if (at::globalContext().userEnabledCuDNNSDP())
-    Py_RETURN_TRUE;
-  else
-    Py_RETURN_FALSE;
+  return THPUtils_packInt64(at::globalContext().userEnabledCuDNNSDP());
 }
 
 static PyObject* THPModule_setUserEnabledCuDNN(

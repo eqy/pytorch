@@ -1,6 +1,7 @@
 # mypy: allow-untyped-defs
 """ This module contains functions and classes that alter the behavior of torch.nn.functional.scaled_dot_product_attention """
 import contextlib
+from collections import OrderedDict
 from typing import Iterable, List, Union
 from warnings import warn
 
@@ -61,10 +62,10 @@ def _raise_kernel_warnings(params: SDPAParams) -> None:
 
 
 _backend_names = {
-    "cudnn": "CUDNN_ATTENTION",
-    "flash": "FLASH_ATTENTION",
     "mem_efficient": "EFFICIENT_ATTENTION",
     "math": "MATH",
+    "cudnn": "CUDNN_ATTENTION",
+    "flash": "FLASH_ATTENTION",
 }
 
 
@@ -72,22 +73,45 @@ def _backend_from_string(name: str):
     return getattr(SDPBackend, name)
 
 
-def _cur_sdpa_kernel_backends():
-    backends: List[SDPBackend] = []
+def _cur_sdpa_kernel_backends(set_priority=False):
+    if set_priority:
+        ordered_backends = OrderedDict()
+    else:
+        backends: List[SDPBackend] = []
     for name, val in _backend_names.items():
-        if getattr(torch.backends.cuda, f"{name}_sdp_enabled")():
-            backends.append(getattr(SDPBackend, val))
-    return backends
+        if not set_priority:
+            if getattr(torch.backends.cuda, f"_get_{name}_sdp_enabled")():
+                backends.append(getattr(SDPBackend, val))
+        else:
+            ordered_backends[getattr(torch._C, f"_get_{name}_sdp_enabled")()] = getattr(SDPBackend, val)
+    if not set_priority:
+        return backends
+    else: 
+        print(ordered_backends)
+        print(list(reversed([ordered_backends[key] for key in ordered_backends])))
+
+        return list(reversed([ordered_backends[key] for key in ordered_backends]))
 
 
-def _sdpa_kernel(backends: Iterable[SDPBackend]):
+def _sdpa_kernel(backends: Iterable[SDPBackend], set_priority=False):
+    if set_priority:
+        reversed_list = list(reversed(list(backends)))
     for name, val in _backend_names.items():
         enabled = getattr(SDPBackend, val) in backends
-        getattr(torch.backends.cuda, f"enable_{name}_sdp")(enabled)
+
+        if set_priority:
+            if not enabled:
+                print("WHAT?", val, 0)
+                getattr(torch._C, f"_set_sdp_use_{name}")(0)
+            else:
+                print("WHAT?", val, reversed_list.index(getattr(SDPBackend, val)) + 2)
+                getattr(torch._C, f"_set_sdp_use_{name}")(reversed_list.index(getattr(SDPBackend, val)) + 2)
+        else:
+            getattr(torch.backends.cuda, f"enable_{name}_sdp")(enabled)
 
 
 @contextlib.contextmanager
-def sdpa_kernel(backends: Union[List[SDPBackend], SDPBackend]):
+def sdpa_kernel(backends: Union[List[SDPBackend], SDPBackend], set_priority: bool=False):
     r"""
     Context manager to select which backend to use for scaled dot product attention.
 
@@ -120,13 +144,13 @@ def sdpa_kernel(backends: Union[List[SDPBackend], SDPBackend]):
     if isinstance(backends, SDPBackend):
         backends = [backends]
 
-    backends = set(backends)
-    previous_backends = _cur_sdpa_kernel_backends()
+    backends = list(backends)
+    previous_backends = _cur_sdpa_kernel_backends(set_priority)
     try:
-        _sdpa_kernel(backends)
+        _sdpa_kernel(backends, set_priority)
         yield {}
     finally:
-        _sdpa_kernel(previous_backends)
+        _sdpa_kernel(previous_backends, set_priority)
 
 
 # variadic version of sdpa_kernel for dynamo to use while reconstructing

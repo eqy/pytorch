@@ -287,7 +287,7 @@ def enable_flash_sdp(enabled: bool):
 
     Enables or disables flash scaled dot product attention.
     """
-    torch._C._set_sdp_use_flash(enabled)
+    torch._C._set_sdp_use_flash(int(enabled))
 
 
 def mem_efficient_sdp_enabled():
@@ -305,7 +305,7 @@ def enable_mem_efficient_sdp(enabled: bool):
 
     Enables or disables memory efficient scaled dot product attention.
     """
-    torch._C._set_sdp_use_mem_efficient(enabled)
+    torch._C._set_sdp_use_mem_efficient(int(enabled))
 
 
 def math_sdp_enabled():
@@ -323,7 +323,7 @@ def enable_math_sdp(enabled: bool):
 
     Enables or disables math scaled dot product attention.
     """
-    torch._C._set_sdp_use_math(enabled)
+    torch._C._set_sdp_use_math(int(enabled))
 
 
 def allow_fp16_bf16_reduction_math_sdp(enabled: bool):
@@ -432,7 +432,7 @@ def enable_cudnn_sdp(enabled: bool):
 
     Enables or disables cuDNN scaled dot product attention.
     """
-    torch._C._set_sdp_use_cudnn(enabled)
+    torch._C._set_sdp_use_cudnn(int(enabled))
 
 
 @contextlib.contextmanager

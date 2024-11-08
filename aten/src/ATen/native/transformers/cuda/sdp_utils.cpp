@@ -81,7 +81,56 @@ std::array<SDPBackend, num_backends> priority_order(sdp_params const& params) {
       SDPBackend::math,
       SDPBackend::cudnn_attention,
       };
-  return default_order;
+  bool use_sorted = false;
+  std::map<int, SDPBackend> sorted_map;
+  int priority;
+  auto& ctx = at::globalContext();
+  for (auto& backend : default_order) {
+    switch (backend) {
+      case SDPBackend::cudnn_attention:
+        priority = ctx.userEnabledCuDNNSDP();
+        if (priority > 1) {
+          use_sorted = true;
+          sorted_map.insert(std::make_pair(priority, SDPBackend::cudnn_attention));
+        }
+        break;
+      case SDPBackend::flash_attention:
+        priority = ctx.userEnabledFlashSDP();
+        if (priority > 1) {
+          use_sorted = true;
+          sorted_map.insert(std::make_pair(priority, SDPBackend::flash_attention));
+        }
+        break;
+      case SDPBackend::efficient_attention:
+        priority = ctx.userEnabledMemEfficientSDP();
+        if (priority > 1) {
+          use_sorted = true;
+          sorted_map.insert(std::make_pair(priority, SDPBackend::efficient_attention));
+        }
+        break;
+      case SDPBackend::math:
+        priority = ctx.userEnabledMathSDP();
+        if (priority > 1) {
+          use_sorted = true;
+          sorted_map.insert(std::make_pair(priority, SDPBackend::math));
+        }
+        break;
+      default:
+        TORCH_CHECK(false, "Invalid backend");
+    }
+  }
+  if (!use_sorted) {
+    return default_order;
+  } else {
+    std::array<SDPBackend, num_backends> sorted_order;
+    // higher priority first
+    auto sorted_it = sorted_map.rbegin();
+    for (auto it = sorted_order.begin(); it != sorted_order.end(); it++) {
+      *it = sorted_it->second;
+      sorted_it++;
+    }
+    return sorted_order;
+  }
 }
 
 bool use_tensor_cores(sdp_params const& params, cudaDeviceProp* dprops, bool is_half) {

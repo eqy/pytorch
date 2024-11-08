@@ -1149,20 +1149,20 @@ def set_num_interop_threads(
 ) -> None: ...  # THPModule_setNumInteropThreads
 def _get_cudnn_enabled() -> _bool: ...  # THPModule_userEnabledCuDNN
 def _set_cudnn_enabled(arg: _bool) -> None: ...  # THPModule_setUserEnabledCuDNN
-def _get_flash_sdp_enabled() -> _bool: ...  # THPModule_userEnabledFusedSDP
-def _set_sdp_use_flash(arg: _bool) -> None: ...  # THPModule_setSDPUseFlash
-def _get_mem_efficient_sdp_enabled() -> _bool: ...  # THPModule_userEnabledMathSDP
+def _get_flash_sdp_enabled() -> _int: ...  # THPModule_userEnabledFusedSDP
+def _set_sdp_use_flash(arg: _int) -> None: ...  # THPModule_setSDPUseFlash
+def _get_mem_efficient_sdp_enabled() -> _int: ...  # THPModule_userEnabledMathSDP
 def _set_sdp_use_mem_efficient(
-    arg: _bool,
+    arg: _int,
 ) -> None: ...  # THPModule_setSDPUseMemEfficient
-def _get_math_sdp_enabled() -> _bool: ...  # THPModule_userEnabledMathSDP
-def _set_sdp_use_math(arg: _bool) -> None: ...  # THPModule_setSDPUseMath
+def _get_math_sdp_enabled() -> _int: ...  # THPModule_userEnabledMathSDP
+def _set_sdp_use_math(arg: _int) -> None: ...  # THPModule_setSDPUseMath
 def _get_math_sdp_allow_fp16_bf16_reduction() -> _bool: ...  # THPModule_allowFP16BF16ReductionMathSDP
 def _set_math_sdp_allow_fp16_bf16_reduction(arg: _bool) -> None: ...  # THPModule_setAllowFP16BF16ReductionMathSDP
 def _get_overrideable_sdp_enabled() -> _bool: ...  # THPModule_userEnabledOverrideableSDP
 def _set_sdp_use_overrideable(arg: _bool) -> None: ...  # THPModule_setSDPUseOverrideable
-def _get_cudnn_sdp_enabled() -> _bool: ...  # THPModule_userEnabledMathSDP
-def _set_sdp_use_cudnn(arg: _bool) -> None: ...  # THPModule_setSDPUseMath
+def _get_cudnn_sdp_enabled() -> _int: ...  # THPModule_userEnabledMathSDP
+def _set_sdp_use_cudnn(arg: _int) -> None: ...  # THPModule_setSDPUseMath
 def _get_mkldnn_enabled() -> _bool: ...  # THPModule_userEnabledMkldnn
 def _set_mkldnn_enabled(arg: _bool) -> None: ...  # THPModule_setUserEnabledMkldnn
 def _get_cudnn_benchmark() -> _bool: ...  # THPModule_benchmarkCuDNN

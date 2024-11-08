@@ -208,17 +208,17 @@ class TORCH_API Context {
   // the math SDP kernel, you can force your code to use flash kernels.
   // The math SDP kernel can be disabled by setting
   // at::globalContext().setUserEnabledMathSDP(false) flag.
-  void setSDPUseFlash(bool);
-  bool userEnabledFlashSDP() const;
+  void setSDPUseFlash(int);
+  int userEnabledFlashSDP() const;
 
-  void setSDPUseMemEfficient(bool);
-  bool userEnabledMemEfficientSDP() const;
+  void setSDPUseMemEfficient(int);
+  int userEnabledMemEfficientSDP() const;
 
-  void setSDPUseMath(bool);
-  bool userEnabledMathSDP() const;
+  void setSDPUseMath(int);
+  int userEnabledMathSDP() const;
 
-  void setSDPUseCuDNN(bool);
-  bool userEnabledCuDNNSDP() const;
+  void setSDPUseCuDNN(int);
+  int userEnabledCuDNNSDP() const;
 
   void setAllowFP16BF16ReductionMathSDP(bool);
   bool allowFP16BF16ReductionMathSDP() const;
@@ -382,10 +382,10 @@ class TORCH_API Context {
   bool _deterministic_algorithms = false;
   bool _deterministic_algorithms_warn_only = false;
   bool _deterministic_fill_uninitialized_memory = true;
-  bool enabled_flashSDP = true;
-  bool enabled_mem_efficientSDP = true;
-  bool enabled_mathSDP = true;
-  bool enabled_cudnnSDP = true;
+  int enabled_flashSDP = 1;
+  int enabled_mem_efficientSDP = 2;
+  int enabled_mathSDP = 3;
+  int enabled_cudnnSDP = 4;
   bool enabled_overrideable = true;
   bool allow_fp16_bf16_reduction_mathSDP = false;
 #ifdef USE_ROCM

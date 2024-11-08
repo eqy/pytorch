@@ -1,5 +1,4 @@
 #include <ATen/Config.h>
-
 #include <ATen/Context.h>
 
 #include <c10/core/CPUAllocator.h>
@@ -122,27 +121,27 @@ void Context::setAllowTF32CuDNN(bool b) {
   allow_tf32_cudnn = b;
 }
 
-bool Context::userEnabledFlashSDP() const {
+int Context::userEnabledFlashSDP() const {
   return enabled_flashSDP;
 }
 
-void Context::setSDPUseFlash(bool e) {
+void Context::setSDPUseFlash(int e) {
   enabled_flashSDP = e;
 }
 
-bool Context::userEnabledMemEfficientSDP() const {
+int Context::userEnabledMemEfficientSDP() const {
   return enabled_mem_efficientSDP;
 }
 
-void Context::setSDPUseMemEfficient(bool e) {
+void Context::setSDPUseMemEfficient(int e) {
   enabled_mem_efficientSDP = e;
 }
 
-bool Context::userEnabledMathSDP() const {
+int Context::userEnabledMathSDP() const {
   return enabled_mathSDP;
 }
 
-void Context::setSDPUseMath(bool e) {
+void Context::setSDPUseMath(int e) {
   enabled_mathSDP = e;
 }
 
@@ -154,11 +153,11 @@ void Context::setAllowFP16BF16ReductionMathSDP(bool e) {
   allow_fp16_bf16_reduction_mathSDP = e;
 }
 
-bool Context::userEnabledCuDNNSDP() const {
+int Context::userEnabledCuDNNSDP() const {
   return enabled_cudnnSDP;
 }
 
-void Context::setSDPUseCuDNN(bool e) {
+void Context::setSDPUseCuDNN(int e) {
   enabled_cudnnSDP = e;
 }
 
