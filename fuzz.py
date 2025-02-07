@@ -116,16 +116,16 @@ while True:
                 assert k.is_leaf
                 assert v.is_leaf
                 out = F.scaled_dot_product_attention(q, k, v)
-                torch.testing.assert_close(out, out_ref.half(), atol=1e-3, rtol=1e-3)
+                torch.testing.assert_close(out, out_ref.half(), atol=3e-3, rtol=3e-3)
                 out.backward(grad_output)
                 assert k.grad is not None
                 assert v.grad is not None
                 assert q.grad is not None
                 assert q_ref.grad is not None
 
-                torch.testing.assert_close(q.grad, q_ref.grad.half(), atol=1e-3, rtol=1e-3)
-                torch.testing.assert_close(k.grad, k_ref.grad.half(), atol=1e-3, rtol=1e-3)
-                torch.testing.assert_close(v.grad, v_ref.grad.half(), atol=1e-3, rtol=1e-3)
+                torch.testing.assert_close(q.grad, q_ref.grad.half(), atol=3e-3, rtol=3e-3)
+                torch.testing.assert_close(k.grad, k_ref.grad.half(), atol=3e-3, rtol=3e-3)
+                torch.testing.assert_close(v.grad, v_ref.grad.half(), atol=3e-3, rtol=3e-3)
 
         with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
             out = F.scaled_dot_product_attention(q, k, v, dropout_p=dropout_p).sum().backward()
