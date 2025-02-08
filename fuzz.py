@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn.functional as F
 from torch.nn.attention import sdpa_kernel, SDPBackend
@@ -27,12 +29,15 @@ MAX_ELEM = 2**25
 CHECK_REF = True
 REF_DTYPE = torch.half
 
-i = 0
-num_gpus = torch.cuda.device_count()
+#i = 0
+#num_gpus = torch.cuda.device_count()
+num_gpus = int(os.environ["WORLD_SIZE"])
+device = int(os.environ["LOCAL_RANK"])
 dtypes = [torch.half, torch.bfloat16]
+i = device
 
 while True:
-    device = i % num_gpus
+    # device = i % num_gpus
     dtype = dtypes[torch.randint(low=0, high=len(dtypes), size=(1,)).item()]
     b = torch.randint(low=MIN_B, high=MAX_B+1, size=(1,)).item()
     high_sq = int(min(MAX_SEQLEN_Q, MAX_ELEM/b) + 1)
@@ -70,14 +75,15 @@ while True:
     grad_permute = list(torch.randperm(3)) + [3]
     grad_reverse = [grad_permute.index(i) for i in range(4)]
 
-
-    print(f"GPU: {device} case: {i}\n"
+    case_str = (f"GPU: {device} case: {i}\n"
         f"Q {[b, h_q, s_q, d_qk]} numel {b*s_q*h_q*d_qk} layout {q_permute}\n"
         f"K {[b, h_k, s_kv, d_qk]} numel {b*s_kv*h_k*d_qk} layout {k_permute}\n"
         f"V {[b, h_v, s_kv, d_v]} numel {b*s_kv*h_v*d_v} layout {v_permute}\n"
         f"O {[b, h_q, s_q, d_v]} numel {out_numel}\n"
         f"dO {[b, h_q, s_q, d_v]} numel {out_numel} layout {grad_permute}\n"
         f"dropout p: {dropout_p}\r")
+
+    print(f"GPU: {device} case: {i}\n")
    
     qfillshape = [[b, h_q, s_q, d_qk][idx] for idx in q_permute]
     kfillshape = [[b, h_k, s_kv, d_qk][idx] for idx in k_permute]
@@ -97,7 +103,6 @@ while True:
 
     ref_ok = False
     try:
-        print(f"mem free before ref: {torch.cuda.mem_get_info()[0]/1e9:.2f}")
         if CHECK_REF:
           q_ref = q.detach().to(REF_DTYPE)
           k_ref = k.detach().to(REF_DTYPE)
@@ -105,18 +110,16 @@ while True:
           q_ref.requires_grad=True
           k_ref.requires_grad=True
           v_ref.requires_grad=True
-          print(q_ref.shape, k_ref.shape, v_ref.shape)
           try:
               with sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION, SDPBackend.MATH]):
                   out_ref = F.scaled_dot_product_attention(q_ref, k_ref, v_ref, enable_gqa=True)
-                  print(f"mem free after ref before bwd: {torch.cuda.mem_get_info()[0]/1e9:.2f}")
                   grad_output_ref = grad_output.to(REF_DTYPE)
                   out_ref.backward(grad_output_ref)
                   ref_ok = True
           except RuntimeError as e:
-              print("skipping error in computing ref...")
+              print(f"GPU: {device} skipping error in computing ref...")
     except torch.OutOfMemoryError as e:
-        print("hit OOM while trying to compute ref...")
+        print(f"GPU: {device} hit OOM while trying to compute ref...")
         
     try: 
         if CHECK_REF and ref_ok:
@@ -143,4 +146,6 @@ while True:
     except torch.OutOfMemoryError as e:
         print("hit OOM, assuming it was a cuDNN workspace...")
         continue
-
+    except Exception as e:
+        print("FAILED case:", case_str)
+    i += num_gpus
