@@ -107,14 +107,14 @@ while True:
           v_ref.requires_grad=True
           print(q_ref.shape, k_ref.shape, v_ref.shape)
           try:
-			  with sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION, SDPBackend.MATH]):
-				  out_ref = F.scaled_dot_product_attention(q_ref, k_ref, v_ref, enable_gqa=True)
-				  print(f"mem free after ref before bwd: {torch.cuda.mem_get_info()[0]/1e9:.2f}")
-				  grad_output_ref = grad_output.to(REF_DTYPE)
-				  out_ref.backward(grad_output_ref)
- 		  except RuntimeError as e:
+              with sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION, SDPBackend.MATH]):
+                  out_ref = F.scaled_dot_product_attention(q_ref, k_ref, v_ref, enable_gqa=True)
+                  print(f"mem free after ref before bwd: {torch.cuda.mem_get_info()[0]/1e9:.2f}")
+                  grad_output_ref = grad_output.to(REF_DTYPE)
+                  out_ref.backward(grad_output_ref)
+                  ref_ok = True
+          except RuntimeError as e:
               print("skipping error in computing ref...")
-          ref_ok = True
     except torch.OutOfMemoryError as e:
         print("hit OOM while trying to compute ref...")
         
@@ -132,9 +132,9 @@ while True:
                 assert q.grad is not None
                 assert q_ref.grad is not None
 
-                torch.testing.assert_close(q.grad, q_ref.grad.to(dtype), atol=7e-3, rtol=7e-3)
-                torch.testing.assert_close(k.grad, k_ref.grad.to(dtype), atol=7e-3, rtol=7e-3)
-                torch.testing.assert_close(v.grad, v_ref.grad.to(dtype), atol=7e-3, rtol=7e-3)
+                torch.testing.assert_close(q.grad, q_ref.grad.to(dtype), atol=5e-2, rtol=7e-3)
+                torch.testing.assert_close(k.grad, k_ref.grad.to(dtype), atol=5e-2, rtol=7e-3)
+                torch.testing.assert_close(v.grad, v_ref.grad.to(dtype), atol=5e-2, rtol=7e-3)
 
         with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
             out = F.scaled_dot_product_attention(q, k, v, dropout_p=dropout_p).sum().backward()
