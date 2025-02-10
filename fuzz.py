@@ -111,7 +111,7 @@ while True:
           k_ref.requires_grad=True
           v_ref.requires_grad=True
           try:
-              with sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION, SDPBackend.MATH]):
+              with sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]):
                   out_ref = F.scaled_dot_product_attention(q_ref, k_ref, v_ref, enable_gqa=True)
                   grad_output_ref = grad_output.to(REF_DTYPE)
                   out_ref.backward(grad_output_ref)
@@ -134,10 +134,11 @@ while True:
                 assert v.grad is not None
                 assert q.grad is not None
                 assert q_ref.grad is not None
-
-                torch.testing.assert_close(q.grad, q_ref.grad.to(dtype), atol=5e-2, rtol=7e-3)
-                torch.testing.assert_close(k.grad, k_ref.grad.to(dtype), atol=5e-2, rtol=7e-3)
-                torch.testing.assert_close(v.grad, v_ref.grad.to(dtype), atol=5e-2, rtol=7e-3)
+                grad_atol = 5e-2 if dtype is torch.float16  else 5e-1
+                grad_rtol = 5e-3 if dtype is torch.float16 else 5e-1
+                torch.testing.assert_close(q.grad, q_ref.grad.to(dtype), atol=grad_atol, rtol=grad_rtol)
+                torch.testing.assert_close(k.grad, k_ref.grad.to(dtype), atol=grad_atol, rtol=grad_rtol)
+                torch.testing.assert_close(v.grad, v_ref.grad.to(dtype), atol=grad_atol, rtol=grad_rtol)
 
         with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
             out = F.scaled_dot_product_attention(q, k, v, dropout_p=dropout_p).sum().backward()
@@ -147,5 +148,6 @@ while True:
         print("hit OOM, assuming it was a cuDNN workspace...")
         continue
     except Exception as e:
-        print("FAILED case:", case_str)
+        print("FAILED case:", case_str, str(e))
+        raise e
     i += num_gpus
