@@ -84,7 +84,7 @@ while True:
         f"V {[b, h_v, s_kv, d_v]} numel {b*s_kv*h_v*d_v} layout {v_permute}\n"
         f"O {[b, h_q, s_q, d_v]} numel {out_numel}\n"
         f"dO {[b, h_q, s_q, d_v]} numel {out_numel} layout {grad_permute}\n"
-        f"dropout p: {dropout_p}\r")
+        f"dropout p: {dropout_p}\n")
 
     print(f"GPU: {device} case: {i}\n")
    
