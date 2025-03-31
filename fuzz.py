@@ -14,8 +14,8 @@ def factors(n):
 
 MIN_B = 1
 MAX_B = 64
-MIN_SEQLEN_Q = 2
-MIN_SEQLEN_KV = 2
+MIN_SEQLEN_Q = 1
+MIN_SEQLEN_KV = 1
 MAX_SEQLEN_Q = 2**16
 MAX_SEQLEN_KV = 2**16
 MIN_HEAD = 1
@@ -114,7 +114,7 @@ while True:
           k_ref.requires_grad=True
           v_ref.requires_grad=True
           try:
-              with sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]):
+              with sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION, SDPBackend.MATH]):
                   out_ref = F.scaled_dot_product_attention(q_ref, k_ref, v_ref, enable_gqa=True)
                   grad_output_ref = grad_output.to(REF_DTYPE)
                   out_ref.backward(grad_output_ref)
@@ -130,7 +130,7 @@ while True:
                 assert q.is_leaf
                 assert k.is_leaf
                 assert v.is_leaf
-                out = F.scaled_dot_product_attention(q, k, v)
+                out = F.scaled_dot_product_attention(q, k, v, enable_gqa=True)
                 torch.testing.assert_close(out, out_ref.to(dtype), atol=7e-3, rtol=7e-3)
                 out.backward(grad_output)
                 assert k.grad is not None
@@ -144,9 +144,9 @@ while True:
                 torch.testing.assert_close(v.grad, v_ref.grad.to(dtype), atol=grad_atol, rtol=grad_rtol)
 
         with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
-            out = F.scaled_dot_product_attention(q, k, v, dropout_p=dropout_p).sum().backward()
+            out = F.scaled_dot_product_attention(q, k, v, dropout_p=dropout_p, enable_gqa=True).sum().backward()
         with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
-            out = F.scaled_dot_product_attention(q, k, v, is_causal=True, dropout_p=dropout_p).sum().backward()
+            out = F.scaled_dot_product_attention(q, k, v, is_causal=True, dropout_p=dropout_p, enable_gqa=True).sum().backward()
     except torch.OutOfMemoryError as e:
         print("hit OOM, assuming it was a cuDNN workspace...")
         continue
