@@ -12,6 +12,8 @@ def factors(n):
         return set(reduce(list.__add__,
                     ([i, n//i] for i in range(1, int(sqrt(n))+1, step) if n % i == 0)))
 
+compute_capability = torch.cuda.get_device_capability()
+
 MIN_B = 1
 MAX_B = 64
 MIN_SEQLEN_Q = 1
@@ -21,7 +23,7 @@ MAX_SEQLEN_KV = 2**16
 MIN_HEAD = 1
 MAX_HEAD = 2048
 MIN_DQK = 1
-MAX_DQK = 128
+MAX_DQK = 256 if compute_capability == (9, 0) or compute_capability == (10, 0) else 128
 MIN_DMOD = 8
 MIN_DV = 1
 MAX_DV = 128
