@@ -26,7 +26,7 @@ MIN_DQK = 1
 MAX_DQK = 256 if compute_capability == (9, 0) or compute_capability == (10, 0) else 128
 MIN_DMOD = 8
 MIN_DV = 1
-MAX_DV = 128
+MAX_DV = 256 if compute_capability == (9, 0) or compute_capability == (10, 0) else 128
 MAX_ELEM = 2**25
 CHECK_REF = True
 REF_DTYPE = torch.half
@@ -59,7 +59,7 @@ while True:
         h_v = h_kv_choices[torch.randint(low=0, high=len(h_kv_choices), size=(1,)).item()]
     high_dqk = int(min(MAX_DQK, MAX_ELEM/(b*s_q*h_q), MAX_ELEM/(b*s_kv*h_k))//MIN_DMOD) + 1
     high_dv = int(min(MAX_DV, MAX_ELEM/(b*s_kv*h_v))//MIN_DMOD) + 1
-    if high_dqk <= MIN_DQK or high_dv <= MIN_DV:
+    if high_dqk <= MIN_DQK//MIN_DMOD + 1 or high_dv <= MIN_DV//MIN_DMOD + 1:
         continue
     d_qk = torch.randint(low=MIN_DQK//MIN_DMOD + 1, high=high_dqk, size=(1,)).item() * MIN_DMOD
     d_v = torch.randint(low=MIN_DV//MIN_DMOD + 1, high=high_dv, size=(1,)).item() * MIN_DMOD
