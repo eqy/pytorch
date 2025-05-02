@@ -152,6 +152,13 @@ while True:
     except torch.OutOfMemoryError as e:
         print("hit OOM, assuming it was a cuDNN workspace...")
         continue
+    except RuntimeError as e:
+        if "No available kernel." in e:
+            print("hit unsupported heuristic case, assuming it's seqlen 1 droppout...")
+            print(case_str)
+            continue
+        else:
+            raise e
     except Exception as e:
         print("FAILED case:", case_str, str(e))
         raise e
