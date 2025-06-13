@@ -153,11 +153,12 @@ while True:
         print("hit OOM, assuming it was a cuDNN workspace...")
         continue
     except RuntimeError as e:
-        if "No available kernel." in e:
+        if "No available kernel." in str(e):
             print("hit unsupported heuristic case, assuming it's seqlen 1 droppout...")
             print(case_str)
             continue
         else:
+            print("FAILED case:", case_str, str(e))
             raise e
     except Exception as e:
         print("FAILED case:", case_str, str(e))
