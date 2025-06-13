@@ -151,13 +151,19 @@ while True:
         with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
             out = F.scaled_dot_product_attention(q, k, v, is_causal=True, dropout_p=dropout_p, enable_gqa=True).sum().backward()
     except torch.OutOfMemoryError as e:
-        print("hit OOM, assuming it was a cuDNN workspace...")
+        print(f"GPU: {deviec} hit OOM, assuming it was a cuDNN workspace...")
         continue
     except RuntimeError as e:
         if "No available kernel." in str(e):
-            print("hit unsupported heuristic case, assuming it's seqlen 1 droppout...")
+            print(f"GPU: {device} hit unsupported heuristic case, assuming it's seqlen 1 droppout...")
             print(case_str)
             continue
+        else:
+            print("FAILED case:", case_str, str(e))
+            raise e
+    except AssertionError as e:
+        if torch.isnan(out_ref).any() or torch.isnan(q_ref.grad).any() or torch.isnan(k_ref.grad).any() or torch.isnan(v_ref.grad).any():
+            print(f"GPU: {device} NaNs in reference, assuming unstable fp16 case, skipping...")
         else:
             print("FAILED case:", case_str, str(e))
             raise e
