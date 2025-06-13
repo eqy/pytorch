@@ -81,6 +81,7 @@ while True:
     grad_reverse = [grad_permute.index(i) for i in range(4)]
 
     case_str = (f"GPU: {device} case: {i}\n"
+        f"dtype: {dtype}"\n
         f"Q {[b, h_q, s_q, d_qk]} numel {b*s_q*h_q*d_qk} layout {q_permute}\n"
         f"K {[b, h_k, s_kv, d_qk]} numel {b*s_kv*h_k*d_qk} layout {k_permute}\n"
         f"V {[b, h_v, s_kv, d_v]} numel {b*s_kv*h_v*d_v} layout {v_permute}\n"
@@ -109,16 +110,16 @@ while True:
     ref_ok = False
     try:
         if CHECK_REF:
-          q_ref = q.detach().to(REF_DTYPE)
-          k_ref = k.detach().to(REF_DTYPE)
-          v_ref = v.detach().to(REF_DTYPE)
+          q_ref = q.detach().to(dtype)
+          k_ref = k.detach().to(dtype)
+          v_ref = v.detach().to(dtype)
           q_ref.requires_grad=True
           k_ref.requires_grad=True
           v_ref.requires_grad=True
           try:
               with sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION, SDPBackend.MATH]):
                   out_ref = F.scaled_dot_product_attention(q_ref, k_ref, v_ref, enable_gqa=True)
-                  grad_output_ref = grad_output.to(REF_DTYPE)
+                  grad_output_ref = grad_output.to(dtype)
                   out_ref.backward(grad_output_ref)
                   ref_ok = True
           except RuntimeError as e:
