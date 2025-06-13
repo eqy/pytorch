@@ -81,7 +81,7 @@ while True:
     grad_reverse = [grad_permute.index(i) for i in range(4)]
 
     case_str = (f"GPU: {device} case: {i}\n"
-        f"dtype: {dtype}"\n
+        f"dtype: {dtype}\n"
         f"Q {[b, h_q, s_q, d_qk]} numel {b*s_q*h_q*d_qk} layout {q_permute}\n"
         f"K {[b, h_k, s_kv, d_qk]} numel {b*s_kv*h_k*d_qk} layout {k_permute}\n"
         f"V {[b, h_v, s_kv, d_v]} numel {b*s_kv*h_v*d_v} layout {v_permute}\n"
