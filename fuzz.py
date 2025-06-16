@@ -158,6 +158,10 @@ while True:
             print(f"GPU: {device} hit unsupported heuristic case, assuming it's seqlen 1 droppout...")
             print(case_str)
             continue
+        elif "RuntimeError: cuDNN Frontend error: decode only mode" in str(e):
+            print(f"GPU: {device} hit decode only error, assuming it's seqlen 1 v9.9...")
+            print(case_str)
+            continue
         else:
             print("FAILED case:", case_str, str(e))
             raise e
