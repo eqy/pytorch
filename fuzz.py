@@ -151,7 +151,7 @@ while True:
         with sdpa_kernel(SDPBackend.CUDNN_ATTENTION):
             out = F.scaled_dot_product_attention(q, k, v, is_causal=True, dropout_p=dropout_p, enable_gqa=True).sum().backward()
     except torch.OutOfMemoryError as e:
-        print(f"GPU: {deviec} hit OOM, assuming it was a cuDNN workspace...")
+        print(f"GPU: {device} hit OOM, assuming it was a cuDNN workspace...")
         continue
     except RuntimeError as e:
         if "No available kernel." in str(e):
