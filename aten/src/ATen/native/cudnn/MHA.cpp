@@ -399,7 +399,11 @@ auto build_graph(
   auto scaled_dot_product_flash_attention_options =
       fe::graph::SDPA_attributes()
           .set_name("CUDNN_SDPA")
+#if (defined(CUDNN_FRONTEND_VERSION) && CUDNN_FRONTEND_VERSION < 11400)
           .set_is_inference(return_softmaxstats == false)
+#else
+          .set_generate_stats(return_softmaxstats)
+#endif
           .set_causal_mask(is_causal)
           .set_attn_scale(attn_scale);
   if (dropout_probability != 0.0f) {
@@ -534,7 +538,11 @@ auto build_graph_nestedtensor(
   auto scaled_dot_product_flash_attention_options =
       fe::graph::SDPA_attributes()
           .set_name("CUDNN_SDPA_NESTEDTENSOR")
+#if (defined(CUDNN_FRONTEND_VERSION) && CUDNN_FRONTEND_VERSION < 11400)
           .set_is_inference(return_softmaxstats == false)
+#else
+          .set_generate_stats(return_softmaxstats)
+#endif
           .set_causal_mask(is_causal)
           .set_attn_scale(attn_scale)
           .set_seq_len_q(SEQ_LEN_Q_)
