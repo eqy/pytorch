@@ -420,7 +420,7 @@ bool check_cudnn_tensor_shapes(sdp_params const& params, bool debug) {
   auto head_dim_limit = 128;
   // TODO(eqy): add head dim >= 256 cases on B200 once support is finalized
   auto dprops = at::cuda::getCurrentDeviceProperties();
-  if (dprops->major == 9 && !dprops->minor) {
+  if (dprops->major == 9  && !dprops->minor) {
     head_dim_limit = 256;
   }
   if (d_qk > head_dim_limit || d_v > head_dim_limit) {
@@ -429,6 +429,23 @@ bool check_cudnn_tensor_shapes(sdp_params const& params, bool debug) {
     }
     return false;
   }
+  // special casing for cuDNN 9.11+, unfortunate
+  if ((dprops->major == 9 || dprops->major == 10) && (128 < d_qk) && (d_qk <= 192) && (64 < d_v) && (d_v <= 128)) {
+    if (d_qk == 192 && d_v != 128) {
+      if (debug) {
+        TORCH_WARN("cuDNN 9.11+ only accepts d_v 128 if d_qk is 192 on H100, B200");
+      }
+      return false;
+    }
+  } else if (dprops->major == 10) {
+    if (d_qk >= 128 || d_v >= 128) {
+      if (debug) {
+        TORCH_WARN("cuDNN only supports d_qk 192 for head_dim > 128");
+      }
+      return false;
+    }
+  }
+
   if (d_qk % 8 != 0 || d_v % 8 != 0) {
     if (debug) {
       TORCH_WARN("head_dim should be a multiple of 8");
