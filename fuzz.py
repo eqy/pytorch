@@ -156,6 +156,9 @@ while True:
             continue
         else:
             raise e
+    except torch.OutOfMemoryError as e:
+        print(f"GPU: {device} hit OOM, assuming it was a cuDNN workspace...")
+        continue
     except RuntimeError as e:
         if "No available kernel." in str(e):
             print(f"GPU: {device} hit unsupported heuristic case, assuming it's seqlen 1 droppout...")
