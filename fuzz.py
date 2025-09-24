@@ -43,7 +43,7 @@ device = int(os.environ["LOCAL_RANK"])
 dtypes = [torch.half, torch.bfloat16]
 i = device
 
-print(f"CHECK REF: {CHECK_REF"})
+print(f"CHECK REF: {CHECK_REF}")
 
 while True:
     # device = i % num_gpus
