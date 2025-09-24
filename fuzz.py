@@ -33,7 +33,7 @@ MIN_DMOD = 8
 MIN_DV = 1
 MAX_DV = 256 if compute_capability == (9, 0) or compute_capability == (10, 0) else 128
 MAX_ELEM = 2**25
-CHECK_REF = True
+CHECK_REF = bool(os.environ['CHECK_REF']) if 'CHECK_REF' in os.environ else True
 REF_DTYPE = torch.half
 
 #i = 0
@@ -166,7 +166,7 @@ while True:
         continue
     except RuntimeError as e:
         if "No available kernel." in str(e):
-            print(f"GPU: {device} hit unsupported heuristic case, assuming it's seqlen 1 droppout...")
+            print(f"GPU: {device} hit unsupported heuristic case, assuming it's seqlen 1 dropout...")
             print(case_str)
             continue
         elif "decode only mode" in str(e):
