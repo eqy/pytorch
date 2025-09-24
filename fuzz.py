@@ -32,7 +32,7 @@ MAX_DQK = 256 if compute_capability == (9, 0) or compute_capability == (10, 0) e
 MIN_DMOD = 8
 MIN_DV = 1
 MAX_DV = 256 if compute_capability == (9, 0) or compute_capability == (10, 0) else 128
-MAX_ELEM = 2**25
+MAX_ELEM = 2**24
 CHECK_REF = bool(int(os.environ['CHECK_REF'])) if 'CHECK_REF' in os.environ else True
 CHECK_DROPOUT = bool(int(os.environ['CHECK_DROPOUT'])) if 'CHECK_DROPOUT' in os.environ else True
 REF_DTYPE = torch.half
