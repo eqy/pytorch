@@ -45,7 +45,7 @@ dtypes = [torch.half, torch.bfloat16]
 i = device
 
 print(f"CHECK REF: {CHECK_REF}")
-print(f"CHECK DROPOUT: {CHECK_DROPOUT"})
+print(f"CHECK DROPOUT: {CHECK_DROPOUT}")
 
 while True:
     # device = i % num_gpus
