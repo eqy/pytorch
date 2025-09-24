@@ -34,6 +34,7 @@ MIN_DV = 1
 MAX_DV = 256 if compute_capability == (9, 0) or compute_capability == (10, 0) else 128
 MAX_ELEM = 2**25
 CHECK_REF = bool(int(os.environ['CHECK_REF'])) if 'CHECK_REF' in os.environ else True
+CHECK_DROPOUT = bool(int(os.environ['CHECK_DROPOUT'])) if 'CHECK_DROPOUT' in os.environ else True
 REF_DTYPE = torch.half
 
 #i = 0
@@ -44,6 +45,7 @@ dtypes = [torch.half, torch.bfloat16]
 i = device
 
 print(f"CHECK REF: {CHECK_REF}")
+print(f"CHECK DROPOUT: {CHECK_DROPOUT"})
 
 while True:
     # device = i % num_gpus
@@ -81,7 +83,7 @@ while True:
     v_reverse = [v_permute.index(i) for i in range(4)]
     use_dropout = torch.randint(low=0, high=2, size=(1,)).item() == 1
     dropout_p = 0.0
-    if use_dropout:
+    if CHECK_DROPOUT and use_dropout:
       dropout_p = torch.rand(1).item()
 
     grad_permute = list(torch.randperm(3)) + [3]
