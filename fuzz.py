@@ -33,7 +33,7 @@ MIN_DMOD = 8
 MIN_DV = 1
 MAX_DV = 256 if compute_capability == (9, 0) or compute_capability == (10, 0) else 128
 MAX_ELEM = 2**25
-CHECK_REF = bool(os.environ['CHECK_REF']) if 'CHECK_REF' in os.environ else True
+CHECK_REF = bool(int(os.environ['CHECK_REF'])) if 'CHECK_REF' in os.environ else True
 REF_DTYPE = torch.half
 
 #i = 0
@@ -42,6 +42,8 @@ num_gpus = int(os.environ["WORLD_SIZE"])
 device = int(os.environ["LOCAL_RANK"])
 dtypes = [torch.half, torch.bfloat16]
 i = device
+
+print(f"CHECK REF: {CHECK_REF"})
 
 while True:
     # device = i % num_gpus
