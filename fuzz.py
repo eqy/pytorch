@@ -36,7 +36,7 @@ MAX_ELEM = 2**24
 CHECK_REF = bool(int(os.environ['CHECK_REF'])) if 'CHECK_REF' in os.environ else True
 CHECK_DROPOUT = bool(int(os.environ['CHECK_DROPOUT'])) if 'CHECK_DROPOUT' in os.environ else True
 REF_DTYPE = torch.half
-MAXIMUM_MEMORY_FRACTION = 0.75
+MAXIMUM_MEMORY_FRACTION = 0.70
 
 #i = 0
 #num_gpus = torch.cuda.device_count()
@@ -191,5 +191,6 @@ while True:
             raise e
     except Exception as e:
         print("FAILED case:", case_str, str(e))
+        print(f"FAILED at memory info: {torch.cuda.memory.mem_get_info()}")
         raise e
     i += num_gpus
