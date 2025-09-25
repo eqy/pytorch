@@ -36,7 +36,7 @@ MAX_ELEM = 2**24
 CHECK_REF = bool(int(os.environ['CHECK_REF'])) if 'CHECK_REF' in os.environ else True
 CHECK_DROPOUT = bool(int(os.environ['CHECK_DROPOUT'])) if 'CHECK_DROPOUT' in os.environ else True
 REF_DTYPE = torch.half
-MAXIMUM_MEMORY_FRACTION = 0.9
+MAXIMUM_MEMORY_FRACTION = 0.75
 
 #i = 0
 #num_gpus = torch.cuda.device_count()
@@ -49,10 +49,9 @@ print(f"CHECK REF: {CHECK_REF}")
 print(f"CHECK DROPOUT: {CHECK_DROPOUT}")
 print(f"MAXIMUM MEMORY FRACTION: {MAXIMUM_MEMORY_FRACTION}")
 
-torch.cuda.memory.set_per_process_memory_fraction(MAXIMUM_MEMORY_FRACTION)
+torch.cuda.memory.set_per_process_memory_fraction(MAXIMUM_MEMORY_FRACTION, device=device)
 
 while True:
-    # device = i % num_gpus
     dtype = dtypes[torch.randint(low=0, high=len(dtypes), size=(1,)).item()]
     b = torch.randint(low=MIN_B, high=MAX_B+1, size=(1,)).item()
     high_sq = int(min(MAX_SEQLEN_Q, MAX_ELEM/b) + 1)
