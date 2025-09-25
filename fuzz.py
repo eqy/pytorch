@@ -1,6 +1,6 @@
 import os
 
-os.environ['CUDNN_LOGLEVEL_DBG'] = '3'
+os.environ['CUDNN_LOGLEVEL_DBG'] = '1'
 os.environ['CUDNN_LOGDEST_DBG'] = f'sdpa_backend_rank_{int(os.environ['LOCAL_RANK'])}.log'
 os.environ['CUDNN_FRONTEND_LOG_INFO'] = '1'
 os.environ['CUDNN_FRONTEND_LOG_FILE'] = f'sdpa_frontend_rank_{int(os.environ['LOCAL_RANK'])}.log'
