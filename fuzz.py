@@ -1,4 +1,5 @@
 import os
+import psutil
 
 os.environ['CUDNN_LOGLEVEL_DBG'] = '1'
 os.environ['CUDNN_LOGDEST_DBG'] = f'sdpa_backend_rank_{int(os.environ['LOCAL_RANK'])}.log'
@@ -101,7 +102,8 @@ while True:
         f"dO {[b, h_q, s_q, d_v]} numel {out_numel} layout {grad_permute}\n"
         f"dropout p: {dropout_p}\n")
 
-    print(f"GPU: {device} case: {i}\n")
+    virtual_memory = psutil.virtual_memory()
+    print(f"GPU: {device} case: {i} Host Mem Available:: {virtual_memory.available / 2**20}\n")
    
     qfillshape = [[b, h_q, s_q, d_qk][idx] for idx in q_permute]
     kfillshape = [[b, h_k, s_kv, d_qk][idx] for idx in k_permute]
