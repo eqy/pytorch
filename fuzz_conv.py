@@ -13,6 +13,7 @@ MAX_SPATIAL = 32768
 MAX_BATCH_SIZE = 512
 MAX_ELEM = 2**32
 MAX_KERNEL = 13
+MAX_STRIDE = 3
 MAX_DILATION = 3
 MAX_CHANNEL = 2048
 DTYPES = [torch.float32, torch.bfloat16, torch.half]
@@ -55,8 +56,30 @@ while True:
     memory_formats = [torch.channels_last, torch.contiguous_format] if num_spatial_dim == 2 else [torch.channels_last_3d, torch.contiguous_format]
     memory_format = memory_formats[torch.randint(low=0, high=len(memory_formats), size=(1,)).item()]
 
-    print(input_shape)
-    inp = torch.randn(*(input_shape), dtype=dtype, device='cuda').to(memory_format=memory_format)
-    weight = torch.randn(*(weight_shape), dtype=dtype, device='cuda').to(memory_format=memory_format)
+    inp = torch.randn(*(input_shape), dtype=dtype, device='cuda').to(memory_format=memory_format).detach().clone()
+    weight = torch.randn(*(weight_shape), dtype=dtype, device='cuda').to(memory_format=memory_format).detach().clone()
+    inp.requires_grad = True
+    weight.requires_grad = True
+
+    stride = torch.randint(low=1, high=MAX_STRIDE+1, size=(1,)).item()
+    dilation = torch.randint(low=1, high=MAX_DILATION+1, size=(1,)).item()
+    groups = 1 if not depthwise else in_channels
+
+    if num_spatial_dim == 2:
+        out = torch.nn.functional.conv2d(inp, weight, stride=stride, padding=0, dilation=dilation, groups=groups)
+    else:
+        out = torch.nn.functional.conv3d(inp, weight, stride=stride, padding=0, dilation=dilation, groups=groups)
+
+    if CHECK_REF:
+        inp_ref = inp.cpu().detach().clone()
+        weight_ref = weight.cpu().detach().clone()
+        if num_spatial_dim == 2:
+            out = torch.nn.functional.conv2d(inp_ref, weight_ref, stride=stride, padding=0, dilation=dilation, groups=groups)
+        else:
+            out = torch.nn.functional.conv3d(inp_ref, weight_ref, stride=stride, padding=0, dilation=dilation, groups=groups)
+
+    torch.testing.assert_close(out_ref, out, atol=5e-3, rtol=1e-3)
+
+    out.backward(torch.randn_like(out))
 
     print(dtype, batch_size, spatial_sizes, in_channel, out_channel, depthwise)
