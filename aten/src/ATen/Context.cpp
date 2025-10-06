@@ -611,6 +611,23 @@ void Context::setAllowFP16AccumulationCuBLAS(bool b) {
   allow_fp16_accumulation_cublas = b;
 }
 
+void Context::setAllowSplitKCuBlasLt(bool b) {
+  if (!b) {
+    if (allow_bf16_reduction_cublas ||
+	allow_fp16_reduction_cublas ||
+	allow_fp16_accumulation_cublas) {
+      TORCH_WARN_ONCE("split-k has been disabled in cuBLASLt but one of `allow_fp16_reduced_precision_reduction`"
+		      " `allow_bf16_reduced_precision_reduction` or `allow_fp16_reduced_precision_accumulation`"
+		      " has been set to True. These settings will be overridden (disabled) by disabled split-k.");
+    }
+  }
+  allow_splitk_cublaslt = b;
+}
+
+bool Context::allowSplitKCuBLASLt() const {
+  return allow_splitk_cublaslt; 
+}
+
 std::optional<int32_t> Context::_SMCarveout_EXPERIMENTAL() const {
   return sm_carveout;
 }

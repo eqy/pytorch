@@ -255,6 +255,15 @@ struct CublasLtWorkspace {
   void * ptr;
   size_t size;
 };
+
+inline void warnIfCublasLtSplitKDisabled() {
+  if (C10_UNLIKELY(!at::globalContext().allowSplitKCuBLASLt())) {
+    TORCH_WARN_ONCE("split-k has been disabled in cuBLASLt but a matmul has been"
+		    " routed to the cuBLAS interface which does not support control"
+		    " over this flag explicitly. If you wish to ensure that split-k"
+		    " has been disabled, please set CUBLAS_WORKSPACE_CONFIG=:256:1.");
+  }
+}
 } // anonymous namespace
 
 namespace at::cuda::blas {
@@ -438,6 +447,9 @@ static inline bool bgemm_internal_cublaslt(CUDABLAS_BGEMM_ARGTYPES_AND_C_DTYPE(D
 #endif
   } else {
     static_assert(false && sizeof(Dtype), "at::cuda::blas::bgemm_internal_cublaslt: not implemented");
+  }
+  if (!at::globalContext().allowSplitKCuBLASLt()) {
+    preference.setAttribute(CUBLASLT_MATMUL_PREF_REDUCTION_SCHEME_MASK, CUBLASLT_REDUCTION_SCHEME_NONE);
   }
 
   cublasLtHandle_t ltHandle = at::cuda::getCurrentCUDABlasLtHandle();
@@ -660,6 +672,7 @@ inline void bgemm_internal_cublas_half_helper(CUDABLAS_BGEMM_ARGTYPES_AND_C_DTYP
     alpha_ptr = &halpha;
     beta_ptr = &hbeta;
   }
+  warnIfCublasLtSplitKDisabled();
   if (prop->major >= 5){
     TORCH_CUDABLAS_CHECK(cublasGemmStridedBatchedEx(
       handle, opa, opb, m, n, k,
@@ -705,6 +718,7 @@ inline void bgemm_internal_cublas_bfloat16_helper(CUDABLAS_BGEMM_ARGTYPES_AND_C_
 #else
   auto compute_type = CUDA_R_32F;
 #endif
+  warnIfCublasLtSplitKDisabled();
   TORCH_CUDABLAS_CHECK(cublasGemmStridedBatchedEx(handle,
                               opa, opb, (int)m, (int)n, (int)k,
                               (void*)&falpha, a, CUDA_R_16BF, (int)lda, stridea,
@@ -1118,6 +1132,7 @@ inline void gemm_internal_cublas_half_helper(CUDABLAS_GEMM_ARGTYPES_AND_C_DTYPE(
     alpha_ptr = &halpha;
     beta_ptr = &hbeta;
   }
+  warnIfCublasLtSplitKDisabled();
   if (prop->major >= 5) {
     cublasMath_t cublas_flags = CUBLAS_DEFAULT_MATH;
     if (!at::globalContext().allowFP16ReductionCuBLAS()) {
@@ -1190,6 +1205,7 @@ inline void gemm_internal_cublas_bfloat16_helper(CUDABLAS_GEMM_ARGTYPES_AND_C_DT
   auto compute_type = CUDA_R_32F;
 #endif
   TORCH_CUDABLAS_CHECK(cublasSetMathMode(handle, cublas_flags));
+  warnIfCublasLtSplitKDisabled();
   TORCH_CUDABLAS_CHECK(cublasGemmEx(
       handle,
       opa,
@@ -1591,6 +1607,9 @@ bool gemm_and_bias(
         CUBLASLT_REDUCTION_SCHEME_COMPUTE_TYPE | CUBLASLT_REDUCTION_SCHEME_NONE);
     }
 #endif
+  }
+  if (!at::globalContext().allowSplitKCuBLASLt()) {
+    preference.setAttribute(CUBLASLT_MATMUL_PREF_REDUCTION_SCHEME_MASK, CUBLASLT_REDUCTION_SCHEME_NONE);
   }
 
   CuBlasLtMatmulDescriptor computeDesc(computeType, scaleType);
@@ -1997,9 +2016,13 @@ void scaled_gemm(
   CuBlasLtMatmulPreference preference;
   auto ltworkspace = CublasLtWorkspace();
   preference.setAttribute(CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, ltworkspace.size);
+  if (!at::globalContext().allowSplitKCuBLASLt()) {
+    preference.setAttribute(CUBLASLT_MATMUL_PREF_REDUCTION_SCHEME_MASK, CUBLASLT_REDUCTION_SCHEME_NONE);
+  }
   cublasLtMatmulHeuristicResult_t heuristicResult = {};
   int returnedResult = 0;
   cublasLtHandle_t ltHandle = at::cuda::getCurrentCUDABlasLtHandle();
+
   TORCH_CUDABLAS_CHECK(cublasLtMatmulAlgoGetHeuristic(
       ltHandle,
       computeDesc.descriptor(),
