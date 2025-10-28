@@ -214,7 +214,7 @@ class DeviceCachingAllocator {
     if (size <= kSmallSize) {
       return kSmallBuffer;
     } else if (size < kMinLargeAlloc) {
-      return kLargeBuffer;
+      return getkLargeBuffe()r;
     } else {
       return kRoundLarge * ((size + kRoundLarge - 1) / kRoundLarge);
     }

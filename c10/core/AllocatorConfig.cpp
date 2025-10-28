@@ -60,8 +60,8 @@ size_t AcceleratorAllocatorConfig::parseMaxSplitSize(
     const ConfigTokenizer& tokenizer,
     size_t i) {
   tokenizer.checkToken(++i, ":");
-  constexpr size_t min_allowed_split_size_mb = kLargeBuffer / kMB;
-  constexpr size_t max_allowed_split_size_mb =
+  size_t min_allowed_split_size_mb = getkLargeBuffer() / kMB;
+  size_t max_allowed_split_size_mb =
       std::numeric_limits<size_t>::max() / kMB;
 
   size_t val_env = tokenizer.toSizeT(++i);
@@ -79,8 +79,8 @@ size_t AcceleratorAllocatorConfig::parseMaxNonSplitRoundingSize(
     const ConfigTokenizer& tokenizer,
     size_t i) {
   tokenizer.checkToken(++i, ":");
-  constexpr size_t min_allowed_split_size_mb = kLargeBuffer / kMB;
-  constexpr size_t max_allowed_split_size_mb =
+  size_t min_allowed_split_size_mb = getkLargeBuffer() / kMB;
+  size_t max_allowed_split_size_mb =
       std::numeric_limits<size_t>::max() / kMB;
 
   size_t val_env = tokenizer.toSizeT(++i);
@@ -237,6 +237,18 @@ void AcceleratorAllocatorConfig::parseArgs(const std::string& env) {
       tokenizer.checkToken(++i, ",");
     }
   }
+}
+
+size_t getkLargeBuffer() {
+  if (!kLargeBuffer) {
+    auto size_str = c10::utils::get_env("TORCH_KLARGEBUFFERSIZE");
+    if (size_str.has_value()) {
+      kLargeBuffer = std::stoull(size_str.value());
+    } else {
+      kLargeBuffer = 20*1024*1024;
+    }
+  }
+  return kLargeBuffer;
 }
 
 } // namespace c10::CachingAllocator

@@ -3,6 +3,7 @@
 #include <c10/core/DeviceType.h>
 #include <c10/util/Exception.h>
 #include <c10/util/llvmMathExtras.h>
+#include <c10/util/env.h>
 
 #include <atomic>
 #include <mutex>
@@ -12,8 +13,7 @@
 
 namespace c10::CachingAllocator {
 
-// "large" allocations may be packed in 20 MiB blocks
-constexpr size_t kLargeBuffer = 20971520;
+static size_t kLargeBuffer = 0;
 // "small" allocations are packed in 2 MiB blocks
 constexpr size_t kSmallBuffer = 2097152;
 // all sizes are rounded to at least 512 bytes
@@ -381,5 +381,7 @@ struct DeviceConfigParserHookRegistry {
           },                                                  \
           parser_cls::getKeys());                             \
   }
+
+C10_API size_t getkLargeBuffer();
 
 } // namespace c10::CachingAllocator
