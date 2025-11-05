@@ -701,23 +701,20 @@ bool can_use_cudnn_attention(const sdp_params& params, bool debug) {
     TORCH_WARN("Torch was not compiled with cuDNN attention.");
   }
   return false;
-#endif
-#if defined(CUDNN_VERSION) && CUDNN_VERSION < 90000
-  if (debug) {
-    TORCH_WARN(CUDNN_VERSION, " cuDNN version too old to use cuDNN Attention (< v9.0.0)");
+#else
+  auto cudnn_version = at::detail::getCUDAHooks().versionCuDNN();
+  if (cudnn_version < 90000) {
+    if (debug) {
+      TORCH_WARN(CUDNN_VERSION, " cuDNN version too old to use cuDNN Attention (< v9.0.0)");
+    }
+    return false;
   }
-  return false;
-#endif
-#if defined(CUDNN_VERSION)
-  static auto cudnn_version = cudnnGetVersion();
   if (params.dropout > 0.0 && cudnn_version > 91100 && cudnn_version < 91400) {
     if (debug) {
       TORCH_WARN(CUDNN_VERSION, " cuDNN version does not support droppout in SDPA (9.11 - 9.13).");
     }
     return false;
   }
-#endif
-  auto cudnn_version = at::detail::getCUDAHooks().versionCuDNN();
   if (cudnn_version <= 91500 && params.query.size(2) % 128 != 0) {
     if (debug) {
       TORCH_WARN(cudnn_version, " cuDNN version does not support s_q % 128 != 0.");
@@ -758,6 +755,7 @@ bool can_use_cudnn_attention(const sdp_params& params, bool debug) {
     }
   }
   return true;
+#endif
 }
 
 bool is_flash_attention_available() {
