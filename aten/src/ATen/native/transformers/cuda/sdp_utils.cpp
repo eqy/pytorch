@@ -717,6 +717,13 @@ bool can_use_cudnn_attention(const sdp_params& params, bool debug) {
     return false;
   }
 #endif
+  auto cudnn_version = at::detail::getCUDAHooks().versionCuDNN();
+  if (cudnn_version <= 91500 && params.query.size(2) % 128 != 0) {
+    if (debug) {
+      TORCH_WARN(cudnn_version, " cuDNN version does not support s_q % 128 != 0.");
+    }
+    return false;
+  }
   // Define gate functions that determine if a flash kernel can be ran
   // Replace with std::to_array when we migrate to c++20
   constexpr auto general_constraints =
