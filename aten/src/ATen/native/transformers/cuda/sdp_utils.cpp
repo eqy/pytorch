@@ -717,9 +717,9 @@ bool can_use_cudnn_attention(const sdp_params& params, bool debug) {
   }
   // TODO(eqy): use version gating for this once we have runtime verison and frontend version querying available
   static bool avoid_recompile = c10::utils::check_env("TORCH_CUDNN_SDPA_AVOID_RECOMPILE") == true;
-  if (!avoid_recopmile && params.query.size(2) % 128 != 0) {
+  if (!avoid_recompile && params.query.size(2) % 128 != 0) {
     if (debug) {
-      TORCH_WARN("cuDNN version does not support s_q % 128 != 0 without TORCH_CUDNN_SDPA_AVOID_RECOMPILE=1.");
+      TORCH_WARN("cuDNN does not support s_q % 128 != 0 without TORCH_CUDNN_SDPA_AVOID_RECOMPILE=1.");
     }
     return false;
   }
