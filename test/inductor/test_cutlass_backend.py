@@ -1438,7 +1438,16 @@ class TestCutlassBackend(TestCase):
                                     "Only pingpong Kernels should have been allowed"
                                 )
                             cuda_template_count += 1
-                    if cuda_template_count <= 0:
+                    if SM100OrLater:
+                        # Pingpong kernels are not yet implemented for SM100+.
+                        # Once they are, this branch should be removed.
+                        self.assertEqual(
+                            cuda_template_count,
+                            0,
+                            "Expected no pingpong kernels on SM100+, but found some. "
+                            "If pingpong support has been added, remove this branch.",
+                        )
+                    elif cuda_template_count <= 0:
                         raise AssertionError("No CUTLASSTemplateCaller choices")
 
     @skipXPUIf(True, "fp8 not supported on xpu cutlass backend yet")
