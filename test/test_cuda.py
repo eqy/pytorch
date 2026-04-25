@@ -3796,45 +3796,55 @@ exit(2)
         not TEST_CUDA_GRAPH, "CUDA >= 11.0 or ROCM >= 5.3 required for graphs"
     )
     def test_graph_make_graphed_callables_same_pool(self):
-        torch.manual_seed(5)
-        torch.cuda.manual_seed(5)
-        models = []
-        num_models = 3
-        for _ in range(num_models):
-            models.append(
-                torch.nn.Sequential(
-                    torch.nn.Linear(32, 128),
-                    torch.nn.ReLU(),
-                    torch.nn.Linear(128, 128),
-                ).cuda()
-            )
-        # we will reuse the same pool for all graph captures
-        mempool = torch.cuda.graph_pool_handle()
-        graphed_models = []
-        for model in models:
-            x = torch.randn([64, 32], device="cuda")
-            graphed_model = deepcopy(model)
-            graphed_model = torch.cuda.make_graphed_callables(
-                graphed_model, (x,), pool=mempool
-            )
-            graphed_models.append(graphed_model)
+        # Graphed module wrappers create Python reference cycles, so keep them
+        # in a nested scope that can be collected before the next allocator test.
+        def run_test():
+            torch.manual_seed(5)
+            torch.cuda.manual_seed(5)
+            models = []
+            num_models = 3
+            for _ in range(num_models):
+                models.append(
+                    torch.nn.Sequential(
+                        torch.nn.Linear(32, 128),
+                        torch.nn.ReLU(),
+                        torch.nn.Linear(128, 128),
+                    ).cuda()
+                )
+            # we will reuse the same pool for all graph captures
+            mempool = torch.cuda.graph_pool_handle()
+            graphed_models = []
+            for model in models:
+                x = torch.randn([64, 32], device="cuda")
+                graphed_model = deepcopy(model)
+                graphed_model = torch.cuda.make_graphed_callables(
+                    graphed_model, (x,), pool=mempool
+                )
+                graphed_models.append(graphed_model)
 
-        for model, graphed_model in zip(models, graphed_models):
-            x = torch.randn([64, 32], device="cuda")
-            y = model(x)
-            yg = graphed_model(x)
-            l = y.norm()
-            lg = yg.norm()
-            l.backward()
-            lg.backward()
+            for model, graphed_model in zip(models, graphed_models):
+                x = torch.randn([64, 32], device="cuda")
+                y = model(x)
+                yg = graphed_model(x)
+                l = y.norm()
+                lg = yg.norm()
+                l.backward()
+                lg.backward()
 
-            self.assertEqual(y, yg)
-            self.assertEqual(l, lg)
-            for p, pg in zip(model.parameters(), graphed_model.parameters()):
-                self.assertEqual(p, pg)
-                self.assertEqual(p.grad, pg.grad)
-                self.assertNotEqual(p.data_ptr(), pg.data_ptr())
-                self.assertNotEqual(p.grad.data_ptr(), pg.grad.data_ptr())
+                self.assertEqual(y, yg)
+                self.assertEqual(l, lg)
+                for p, pg in zip(model.parameters(), graphed_model.parameters()):
+                    self.assertEqual(p, pg)
+                    self.assertEqual(p.grad, pg.grad)
+                    self.assertNotEqual(p.data_ptr(), pg.data_ptr())
+                    self.assertNotEqual(p.grad.data_ptr(), pg.grad.data_ptr())
+
+        try:
+            run_test()
+        finally:
+            torch.cuda.synchronize()
+            gc.collect()
+            torch.cuda.empty_cache()
 
     def test_cuda_graph_inference_mode(self):
         # This test is to verify that capturing a CUDAGraph in inference mode
@@ -7082,37 +7092,56 @@ class TestMemPool(TestCase):
     @unittest.skipIf(IS_FBCODE or IS_SANDCASTLE, "Load_inline doesn't work in fbcode")
     def test_mempool_expandable(self):
         torch.cuda.empty_cache()
+        # Earlier CUDA tests may leave active default-pool workspaces alive.
+        existing_segments = {
+            segment["address"] for segment in torch.cuda.memory.memory_snapshot()
+        }
         torch.cuda.memory._set_allocator_settings("expandable_segments:True")
-        allocator, _ = self.get_dummy_allocator(check_vars=False)
-        pool = torch.cuda.MemPool(allocator.allocator())
-
         data = []
-        nelem = 1024 * 1024 // 4
-        with torch.cuda.use_mem_pool(pool):
+        allocator = None
+        pool = None
+        try:
+            allocator, _ = self.get_dummy_allocator(check_vars=False)
+            pool = torch.cuda.MemPool(allocator.allocator())
+
+            nelem = 1024 * 1024 // 4
+            with torch.cuda.use_mem_pool(pool):
+                data.append(torch.empty(nelem, device="cuda"))
+
+            # the second allocation should be in expandable segment
             data.append(torch.empty(nelem, device="cuda"))
 
-        # the second allocation should be in expandable segment
-        data.append(torch.empty(nelem, device="cuda"))
+            segments = [
+                segment
+                for segment in torch.cuda.memory.memory_snapshot()
+                if segment["address"] not in existing_segments
+            ]
 
-        segments = torch.cuda.memory.memory_snapshot()
+            num_expandable_segments = 0
+            for segment in segments:
+                if segment["is_expandable"]:
+                    num_expandable_segments += 1
 
-        num_expandable_segments = 0
-        for segment in segments:
-            if segment["is_expandable"]:
-                num_expandable_segments += 1
-
-        self.assertEqual(len(segments), 2, "Expected to have 2 segment")
-        self.assertEqual(
-            num_expandable_segments, 1, "Expected to have 1 expandable segment only"
-        )
-
-        torch.cuda.memory._set_allocator_settings("expandable_segments:False")
+            self.assertEqual(len(segments), 2, "Expected to have 2 segment")
+            self.assertEqual(
+                num_expandable_segments, 1, "Expected to have 1 expandable segment only"
+            )
+        finally:
+            torch.cuda.memory._set_allocator_settings("expandable_segments:False")
+            del data, pool, allocator
+            torch.cuda.synchronize()
+            gc.collect()
+            torch.cuda.empty_cache()
 
     @serialTest()
     def test_mempool_ctx_multithread(self):
         torch.cuda.empty_cache()
-        segments = torch.cuda.memory._snapshot()["segments"]
-        self.assertEqual(len(segments), 0, "Expected empty pool in the beginning")
+        # Earlier CUDA tests may leave active default-pool workspaces alive.
+        baseline_segments = torch.cuda.memory._snapshot()["segments"]
+        existing_segments = {segment["address"] for segment in baseline_segments}
+        baseline_active = defaultdict(int)
+        for segment in baseline_segments:
+            baseline_active[segment["segment_pool_id"]] += segment["active_size"]
 
         nelem = 1024 * 1024
         trigger_alloc = threading.Event()
@@ -7130,8 +7159,7 @@ class TestMemPool(TestCase):
         def side_thread_fn(segments):
             trigger_alloc.wait()
             out = torch.empty(nelem, dtype=torch.int8, device="cuda")
-            s = torch.cuda.memory._snapshot()["segments"]
-            segments.append(s)
+            segments.append(torch.cuda.memory._snapshot()["segments"])
             done_allocation.set()
 
         segments = []
@@ -7152,19 +7180,29 @@ class TestMemPool(TestCase):
             )
 
         self.assertEqual(len(segments), 1, "Expected to have memory snapshot")
-        self.assertEqual(len(segments[0]), 2, "Expected to have 2 segments allocated")
         active = defaultdict(int)
         for s in segments[0]:
             active[s["segment_pool_id"]] += s["active_size"]
-        for k, v in active.items():
-            if k == (0, 0):
-                self.assertEqual(
-                    v, 2097152, "Expected to have 2MB allocated in the default pool"
-                )
-            else:
-                self.assertEqual(
-                    v, 0, "Expected to have 0 bytes allocated in the custom pool"
-                )
+        self.assertEqual(
+            active[(0, 0)] - baseline_active[(0, 0)],
+            2097152,
+            "Expected to have 2MB allocated in the default pool",
+        )
+
+        new_private_segments = [
+            segment
+            for segment in segments[0]
+            if segment["segment_pool_id"] != (0, 0)
+            and segment["address"] not in existing_segments
+        ]
+        self.assertEqual(
+            len(new_private_segments), 1, "Expected to have 1 custom pool segment"
+        )
+        self.assertEqual(
+            sum(segment["active_size"] for segment in new_private_segments),
+            0,
+            "Expected to have 0 bytes allocated in the custom pool",
+        )
 
     def test_snapshot_include_traces(self):
         """Test that snapshot() include_traces parameter works correctly"""
