@@ -10,6 +10,7 @@ from contextlib import AbstractContextManager
 from collections.abc import Callable
 from torch._dynamo.utils import LazyString
 from torch._inductor import config as inductor_config
+from torch._inductor.utils import fresh_cache
 import logging
 import io
 
@@ -84,16 +85,20 @@ def make_logging_test(**kwargs):
             records = []
             # run with env var
             if len(kwargs) == 0:
-                with self._handler_watcher(records):
+                with fresh_cache(), self._handler_watcher(records):
                     fn(self, records)
             else:
-                with log_settings(kwargs_to_settings(**kwargs)), self._handler_watcher(records):
+                with (
+                    fresh_cache(),
+                    log_settings(kwargs_to_settings(**kwargs)),
+                    self._handler_watcher(records),
+                ):
                     fn(self, records)
 
             # run with API
             torch._dynamo.reset()
             records.clear()
-            with log_api(**kwargs), self._handler_watcher(records):
+            with fresh_cache(), log_api(**kwargs), self._handler_watcher(records):
                 fn(self, records)
 
 

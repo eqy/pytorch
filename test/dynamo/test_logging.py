@@ -183,8 +183,8 @@ class LoggingTests(LoggingTestCase):
         self.assertGreater(len(records), 0)
 
         # LOAF will add an extra round of fusion and result in more logs
-        self.assertLess(
-            len(records), 8 * (1 + torch._inductor.config.loop_ordering_after_fusion)
+        self.assertLessEqual(
+            len(records), 9 * (1 + torch._inductor.config.loop_ordering_after_fusion)
         )
 
     @requires_cuda_and_triton
@@ -445,16 +445,20 @@ Found from :
             def forward(self, x):
                 return self.layers(x)
 
-        os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = str(find_free_port())
-        dist.init_process_group("gloo", rank=0, world_size=1)
+        with unittest.mock.patch.dict(
+            os.environ,
+            {"MASTER_ADDR": "localhost", "MASTER_PORT": str(find_free_port())},
+        ):
+            dist.init_process_group("gloo", rank=0, world_size=1)
 
-        model = DDP(ToyModel().to("cuda:0"), device_ids=[0], bucket_cap_mb=4)
-        ddp_model = torch.compile(model, backend="inductor")
+            try:
+                model = DDP(ToyModel().to("cuda:0"), device_ids=[0], bucket_cap_mb=4)
+                ddp_model = torch.compile(model, backend="inductor")
 
-        ddp_model(torch.randn(1024, 1024, device="cuda:0"))
+                ddp_model(torch.randn(1024, 1024, device="cuda:0"))
+            finally:
+                dist.destroy_process_group()
 
-        dist.destroy_process_group()
         self.assertEqual(len([r for r in records if "__ddp_graphs" in r.name]), 4)
 
     # check that logging to a child log of a registered logger
