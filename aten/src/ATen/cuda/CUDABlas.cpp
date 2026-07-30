@@ -9,11 +9,17 @@
 #include <ATen/cuda/tunable/Tunable.h>
 #include <ATen/cuda/tunable/TunableGemm.h>
 #include <c10/macros/Export.h>
+#include <c10/util/env.h>
+#include <c10/util/hash.h>
 #include <c10/util/irange.h>
 #include <c10/core/ScalarType.h>
 
 #include <ATen/cuda/detail/BLASConstants.h>
 #include <ATen/cuda/detail/CublasLtUtils.h>
+
+#include <optional>
+#include <tuple>
+#include <unordered_map>
 
 #ifdef USE_ROCM
 #include <c10/cuda/CUDAStream.h>
@@ -106,6 +112,50 @@ static hipblasStatus_t rocBLASStatusToHIPStatus(rocblas_status error)
       X)
 
 namespace {
+
+#ifndef USE_ROCM
+using CublasLtHeuristicCacheKey = std::tuple<
+    c10::DeviceIndex,
+    cudaDataType_t,
+    cudaDataType_t,
+    cublasComputeType_t,
+    cudaDataType_t,
+    cublasOperation_t,
+    cublasOperation_t,
+    int64_t,
+    int64_t,
+    int64_t,
+    int64_t,
+    int64_t,
+    int64_t,
+    int64_t,
+    int64_t,
+    int64_t,
+    int64_t,
+    uint32_t,
+    uint32_t,
+    uint32_t,
+    uint32_t,
+    size_t,
+    int32_t,
+    bool>;
+
+bool cublasLtHeuristicCacheEnabled() {
+  static const bool enabled =
+      c10::utils::check_env("TORCH_CUBLASLT_HEURISTIC_CACHE").value_or(false);
+  return enabled;
+}
+
+using CublasLtHeuristicCache = std::unordered_map<
+    CublasLtHeuristicCacheKey,
+    cublasLtMatmulHeuristicResult_t,
+    c10::hash<CublasLtHeuristicCacheKey>>;
+
+CublasLtHeuristicCache& cublasLtHeuristicCache() {
+  thread_local CublasLtHeuristicCache cache;
+  return cache;
+}
+#endif
 
 void _cublasAdjustLdLevel2(int64_t m, int64_t n, int64_t* lda) {
   // Note: leading dimensions generally are checked that they are > 0
@@ -325,11 +375,13 @@ static inline bool bgemm_internal_cublaslt(CUDABLAS_BGEMM_ARGTYPES_AND_C_DTYPE(D
   computeDesc.setAttribute(CUBLASLT_MATMUL_DESC_TRANSB, opb);
   auto stream = at::cuda::getCurrentCUDAStream();
 #ifndef USE_ROCM
+  int32_t sm_count_target = 0;
   if (at::globalContext()._SMCarveout_EXPERIMENTAL().has_value()) {
-    computeDesc.setAttribute<int32_t>(
-        CUBLASLT_MATMUL_DESC_SM_COUNT_TARGET,
+    sm_count_target =
         at::cuda::getCurrentDeviceProperties()->multiProcessorCount -
-            at::globalContext()._SMCarveout_EXPERIMENTAL().value());
+        at::globalContext()._SMCarveout_EXPERIMENTAL().value();
+    computeDesc.setAttribute<int32_t>(
+        CUBLASLT_MATMUL_DESC_SM_COUNT_TARGET, sm_count_target);
   }
 #else
   if (at::globalContext()._SMCarveout_EXPERIMENTAL().has_value()) {
@@ -375,36 +427,78 @@ static inline bool bgemm_internal_cublaslt(CUDABLAS_BGEMM_ARGTYPES_AND_C_DTYPE(D
 #else
   const bool lie_to_cublaslt = false;
 #endif
-  if (lie_to_cublaslt) {
-     const auto fake_ldb = ldb == 1 ? 2 : ldb;
-     const auto fake_ldc = ldc == 1 ? 2 : ldc;
-     CuBlasLtMatrixLayout FakeBdesc(abType, k, 2, fake_ldb, opb == CUBLAS_OP_T);
-     CuBlasLtMatrixLayout FakeCdesc(cType, m, 2, fake_ldc);
-     if (num_batches > 1) {
-       int num_batches_as_int = static_cast<int>(num_batches);
-       FakeBdesc.setAttribute(
-           CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, num_batches_as_int);
-       FakeCdesc.setAttribute(
-           CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, num_batches_as_int);
-       FakeBdesc.setAttribute(
-           CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, strideb);
-       FakeCdesc.setAttribute(
-           CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, stridec);
-     }
 
-     TORCH_CUDABLAS_CHECK(cublasLtMatmulAlgoGetHeuristic(
-        ltHandle,
-        computeDesc.descriptor(),
-        Adesc.descriptor(),
-        FakeBdesc.descriptor(),
-        FakeCdesc.descriptor(),
-        FakeCdesc.descriptor(),
-        preference.descriptor(),
-        1,
-        &heuristicResult,
-        &returnedResult));
-  } else {
-    TORCH_CUDABLAS_CHECK(cublasLtMatmulAlgoGetHeuristic(
+  bool heuristic_cache_hit = false;
+#ifndef USE_ROCM
+  std::optional<CublasLtHeuristicCacheKey> heuristic_cache_key;
+  if (cublasLtHeuristicCacheEnabled()) {
+    heuristic_cache_key.emplace(CublasLtHeuristicCacheKey{
+        stream.device_index(),
+        abType,
+        cType,
+        computeType,
+        scaleType,
+        opa,
+        opb,
+        m,
+        n,
+        k,
+        lda,
+        ldb,
+        ldc,
+        stridea,
+        strideb,
+        stridec,
+        num_batches,
+        mask,
+        a_alignment,
+        b_alignment,
+        c_alignment,
+        ltworkspace.size,
+        sm_count_target,
+        lie_to_cublaslt});
+    auto& cache = cublasLtHeuristicCache();
+    auto cached_result = cache.find(*heuristic_cache_key);
+    if (cached_result != cache.end()) {
+      heuristicResult = cached_result->second;
+      returnedResult = 1;
+      heuristic_cache_hit = true;
+    }
+  }
+#endif
+
+  if (!heuristic_cache_hit) {
+    if (lie_to_cublaslt) {
+      const auto fake_ldb = ldb == 1 ? 2 : ldb;
+      const auto fake_ldc = ldc == 1 ? 2 : ldc;
+      CuBlasLtMatrixLayout FakeBdesc(
+          abType, k, 2, fake_ldb, opb == CUBLAS_OP_T);
+      CuBlasLtMatrixLayout FakeCdesc(cType, m, 2, fake_ldc);
+      if (num_batches > 1) {
+        int num_batches_as_int = static_cast<int>(num_batches);
+        FakeBdesc.setAttribute(
+            CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, num_batches_as_int);
+        FakeCdesc.setAttribute(
+            CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT, num_batches_as_int);
+        FakeBdesc.setAttribute(
+            CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, strideb);
+        FakeCdesc.setAttribute(
+            CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET, stridec);
+      }
+
+      TORCH_CUDABLAS_CHECK(cublasLtMatmulAlgoGetHeuristic(
+          ltHandle,
+          computeDesc.descriptor(),
+          Adesc.descriptor(),
+          FakeBdesc.descriptor(),
+          FakeCdesc.descriptor(),
+          FakeCdesc.descriptor(),
+          preference.descriptor(),
+          1,
+          &heuristicResult,
+          &returnedResult));
+    } else {
+      TORCH_CUDABLAS_CHECK(cublasLtMatmulAlgoGetHeuristic(
         ltHandle,
         computeDesc.descriptor(),
         Adesc.descriptor(),
@@ -415,6 +509,13 @@ static inline bool bgemm_internal_cublaslt(CUDABLAS_BGEMM_ARGTYPES_AND_C_DTYPE(D
         1,
         &heuristicResult,
         &returnedResult));
+    }
+#ifndef USE_ROCM
+    if (heuristic_cache_key.has_value() && returnedResult > 0) {
+      cublasLtHeuristicCache().emplace(
+          *heuristic_cache_key, heuristicResult);
+    }
+#endif
   }
   if (returnedResult == 0) {
     cublasStatus = CUBLAS_STATUS_NOT_SUPPORTED;
@@ -444,6 +545,11 @@ static inline bool bgemm_internal_cublaslt(CUDABLAS_BGEMM_ARGTYPES_AND_C_DTYPE(D
 #endif
   }
   if (cublasStatus != CUBLAS_STATUS_SUCCESS) {
+#ifndef USE_ROCM
+    if (heuristic_cache_key.has_value()) {
+      cublasLtHeuristicCache().erase(*heuristic_cache_key);
+    }
+#endif
     TORCH_WARN(
       "bgemm_internal_cublaslt error: ",
       at::cuda::blas::_cublasGetErrorEnum(cublasStatus),
