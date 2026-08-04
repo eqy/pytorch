@@ -380,8 +380,16 @@ def empty_like(
 
 
 @_onnx_symbolic("aten::zeros")
-@symbolic_helper.parse_args("v", "i", "v", "v", "v")
-def zeros(g: jit_utils.GraphContext, sizes, dtype, layout, device, pin_memory=False):
+@symbolic_helper.parse_args("v", "i", "v", "v", "v", "v")
+def zeros(
+    g: jit_utils.GraphContext,
+    sizes,
+    dtype,
+    layout,
+    device,
+    pin_memory=False,
+    memory_format=None,
+):
     # NOTE: no way to set device and layout in ONNX, so we ignore it
     return _constant_fill(g, sizes, dtype, 0)
 
@@ -402,8 +410,16 @@ def zeros_like(
 
 
 @_onnx_symbolic("aten::ones")
-@symbolic_helper.parse_args("v", "i", "v", "v", "v")
-def ones(g: jit_utils.GraphContext, sizes, dtype, layout, device, pin_memory=False):
+@symbolic_helper.parse_args("v", "i", "v", "v", "v", "v")
+def ones(
+    g: jit_utils.GraphContext,
+    sizes,
+    dtype,
+    layout,
+    device,
+    pin_memory=False,
+    memory_format=None,
+):
     return _constant_fill(g, sizes, dtype, 1)
 
 
@@ -424,7 +440,14 @@ def ones_like(
 
 @_onnx_symbolic("aten::full")
 def full(
-    g: jit_utils.GraphContext, sizes, value, dtype, layout, device, pin_memory=False
+    g: jit_utils.GraphContext,
+    sizes,
+    value,
+    dtype,
+    layout,
+    device,
+    pin_memory=False,
+    memory_format=None,
 ):
     const_value = symbolic_helper._maybe_get_const(value, "t")
     if symbolic_helper._is_value(const_value):

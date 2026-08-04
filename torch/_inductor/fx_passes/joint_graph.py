@@ -425,12 +425,14 @@ class UniformValueConstantFolder(ConstantFolder):
             and node.target is aten.full.default
             and len(node.args) == 2
         ):
-            args, kwargs = self.fetch_args_kwargs_from_env(node)
+            args, _ = self.fetch_args_kwargs_from_env(node)
             value = args[1]
             # Don't specialize symbolic value.
             if not isinstance(value, (torch.SymInt, torch.SymFloat, torch.SymBool)):
                 new_args = [[1], value]
-                return aten.full.default(*new_args, **node.kwargs)
+                kwargs = dict(node.kwargs)
+                kwargs.pop("memory_format", None)
+                return aten.full.default(*new_args, **kwargs)
 
         # handle before view ops because this changes value
         if node.target is aten.view.dtype:

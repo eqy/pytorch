@@ -191,6 +191,7 @@ def replace_random(
     device=None,
     layout=None,
     pin_memory=None,
+    memory_format=None,
 ):
     if generator is not None:
         return
@@ -203,6 +204,8 @@ def replace_random(
         )
         if dtype is not None:
             result = result.to(dtype)
+        if memory_format not in (None, torch.contiguous_format):
+            result = result.to(memory_format=memory_format)
         return result
 
     mode = {
@@ -232,6 +235,8 @@ def replace_random(
             )
             if dtype is not None:
                 result = result.to(dtype)
+            if memory_format not in (None, torch.contiguous_format):
+                result = result.to(memory_format=memory_format)
             return result
 
         replacement_fn = replacement_align
@@ -252,13 +257,17 @@ def replace_randint(
     device=None,
     layout=None,
     pin_memory=None,
+    memory_format=None,
 ):
     if pin_memory:
         return
 
     def replacement(low, high, size):
         result = inductor_prims.randint(low, high, size, inductor_prims.seed(device))
-        return result.to(dtype)
+        result = result.to(dtype)
+        if memory_format not in (None, torch.contiguous_format):
+            result = result.to(memory_format=memory_format)
+        return result
 
     device = get_device(device)
     # pyrefly: ignore [bad-argument-type]

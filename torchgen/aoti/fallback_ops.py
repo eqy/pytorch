@@ -168,14 +168,30 @@ inductor_fallback_ops: dict[str, dict[str, str | dict[str, list[str] | str]]] = 
     "aten.pow.Scalar": {},
     "aten.pow.Tensor_Scalar": {},
     "aten.pow.Tensor_Tensor": {},
-    "aten.rand.default": {},
-    "aten.rand.generator": {},
-    "aten.randint.default": {},
-    "aten.randint.generator": {},
-    "aten.randint.low_out": {},
-    "aten.randint.low": {},
-    "aten.randn.default": {},
-    "aten.randn.generator": {},
+    "aten.rand.default": {
+        "v2": {"new_args": ["memory_format"], "since": "TORCH_VERSION_2_14_0"}
+    },
+    "aten.rand.generator": {
+        "v2": {"new_args": ["memory_format"], "since": "TORCH_VERSION_2_14_0"}
+    },
+    "aten.randint.default": {
+        "v2": {"new_args": ["memory_format"], "since": "TORCH_VERSION_2_14_0"}
+    },
+    "aten.randint.generator": {
+        "v2": {"new_args": ["memory_format"], "since": "TORCH_VERSION_2_14_0"}
+    },
+    "aten.randint.low_out": {
+        "v2": {"new_args": ["memory_format"], "since": "TORCH_VERSION_2_14_0"}
+    },
+    "aten.randint.low": {
+        "v2": {"new_args": ["memory_format"], "since": "TORCH_VERSION_2_14_0"}
+    },
+    "aten.randn.default": {
+        "v2": {"new_args": ["memory_format"], "since": "TORCH_VERSION_2_14_0"}
+    },
+    "aten.randn.generator": {
+        "v2": {"new_args": ["memory_format"], "since": "TORCH_VERSION_2_14_0"}
+    },
     "aten.randperm.default": {},
     "aten.rand_like.default": {"since": "TORCH_VERSION_2_12_0"},
     "aten.rand_like.generator": {"since": "TORCH_VERSION_2_12_0"},
@@ -227,6 +243,9 @@ aten_shimified_ops: dict[str, dict[str, str | dict[str, list[str] | str]]] = {
     "aten.amax.default": {},
     "aten.new_empty.default": {},
     "aten.new_zeros.default": {},
-    "aten.full.default": {"since": "TORCH_VERSION_2_10_0"},
+    "aten.full.default": {
+        "since": "TORCH_VERSION_2_10_0",
+        "v2": {"new_args": ["memory_format"], "since": "TORCH_VERSION_2_14_0"},
+    },
     "aten.subtract.Tensor": {"since": "TORCH_VERSION_2_10_0"},
 }

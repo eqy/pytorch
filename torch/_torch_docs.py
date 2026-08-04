@@ -8784,7 +8784,8 @@ Example::
     tensor([ 1.1552,  2.6148,  2.6535,  5.8318,  4.2361])
 
 .. function:: normal(mean, std, size, *, generator=None, out=None, dtype=None, \
-    layout=torch.strided, device=None, requires_grad=False, pin_memory=False) -> Tensor
+    layout=torch.strided, device=None, requires_grad=False, pin_memory=False, \
+    memory_format=torch.contiguous_format) -> Tensor
    :noindex:
 
 Similar to the function above, but the means and standard deviations are shared
@@ -8803,6 +8804,7 @@ Keyword args:
     {device}
     {requires_grad}
     {pin_memory}
+    {memory_format}
 
 Example::
 
@@ -8836,7 +8838,8 @@ Example::
 add_docstr(
     torch.ones,
     r"""
-ones(*size, *, out=None, dtype=None, layout=torch.strided, device=None, requires_grad=False) -> Tensor
+ones(*size, *, out=None, dtype=None, layout=torch.strided, device=None, requires_grad=False, \
+memory_format=torch.contiguous_format) -> Tensor
 
 Returns a tensor filled with the scalar value `1`, with the shape defined
 by the variable argument :attr:`size`.
@@ -8851,6 +8854,7 @@ Keyword arguments:
     {layout}
     {device}
     {requires_grad}
+    {memory_format}
 
 Example::
 
@@ -9332,7 +9336,7 @@ add_docstr(
     torch.rand,
     """
 rand(*size, *, generator=None, out=None, dtype=None, layout=torch.strided, device=None, \
-requires_grad=False, pin_memory=False) -> Tensor
+requires_grad=False, pin_memory=False, memory_format=torch.contiguous_format) -> Tensor
 """
     + r"""
 Returns a tensor filled with random numbers from a uniform distribution
@@ -9352,6 +9356,7 @@ Keyword args:
     {device}
     {requires_grad}
     {pin_memory}
+    {memory_format}
 
 Example::
 
@@ -9393,7 +9398,8 @@ add_docstr(
     torch.randint,
     """
 randint(low=0, high, size, \\*, generator=None, out=None, \
-dtype=None, layout=torch.strided, device=None, requires_grad=False) -> Tensor
+dtype=None, layout=torch.strided, device=None, requires_grad=False, \
+memory_format=torch.contiguous_format) -> Tensor
 
 Returns a tensor filled with random integers generated uniformly
 between :attr:`low` (inclusive) and :attr:`high` (exclusive).
@@ -9417,6 +9423,7 @@ Keyword args:
     {layout}
     {device}
     {requires_grad}
+    {memory_format}
 
 Example::
 
@@ -9472,7 +9479,7 @@ add_docstr(
     torch.randn,
     """
 randn(*size, *, generator=None, out=None, dtype=None, layout=torch.strided, device=None, requires_grad=False, \
-pin_memory=False) -> Tensor
+pin_memory=False, memory_format=torch.contiguous_format) -> Tensor
 """
     + r"""
 
@@ -9511,6 +9518,7 @@ Keyword args:
     {device}
     {requires_grad}
     {pin_memory}
+    {memory_format}
 
 Example::
 
@@ -12617,7 +12625,8 @@ Example:
 add_docstr(
     torch.zeros,
     r"""
-zeros(*size, *, out=None, dtype=None, layout=torch.strided, device=None, requires_grad=False) -> Tensor
+zeros(*size, *, out=None, dtype=None, layout=torch.strided, device=None, requires_grad=False, \
+memory_format=torch.contiguous_format) -> Tensor
 
 Returns a tensor filled with the scalar value `0`, with the shape defined
 by the variable argument :attr:`size`.
@@ -12632,6 +12641,7 @@ Keyword args:
     {layout}
     {device}
     {requires_grad}
+    {memory_format}
 
 Example::
 
@@ -12856,7 +12866,8 @@ Examples:
 add_docstr(
     torch.full,
     r"""
-full(size, fill_value, *, out=None, dtype=None, layout=torch.strided, device=None, requires_grad=False) -> Tensor
+full(size, fill_value, *, out=None, dtype=None, layout=torch.strided, device=None, \
+requires_grad=False, memory_format=torch.contiguous_format) -> Tensor
 
 Creates a tensor of size :attr:`size` filled with :attr:`fill_value`. The
 tensor's dtype is inferred from :attr:`fill_value`.
@@ -12872,6 +12883,7 @@ Keyword args:
     {layout}
     {device}
     {requires_grad}
+    {memory_format}
 
 Example::
 

@@ -2413,7 +2413,7 @@ static bool hasTensorWithOptions(
 
 REGISTER_OPERATOR_FUNCTOR(aten::full, aten_full, [](Node* n) -> SROperator {
   if (!n->matches(torch::schema(
-          "aten::full(int[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"))) {
+          "aten::full(int[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"))) {
     LogAndDumpSchema(n);
     return nullptr;
   }
@@ -2422,15 +2422,21 @@ REGISTER_OPERATOR_FUNCTOR(aten::full, aten_full, [](Node* n) -> SROperator {
     const auto fill_value = p_node->Input(1).toScalar();
     const auto dtype = p_node->Input(2).toOptional<c10::ScalarType>();
     const auto layout = p_node->Input(3).toOptional<c10::Layout>();
-    if (!hasTensorWithOptions(p_node->Output(0), dtype, layout)) {
+    const auto memory_format =
+        p_node->Input(6).toOptional<c10::MemoryFormat>();
+    if (!hasTensorWithOptions(
+            p_node->Output(0), dtype, layout, memory_format)) {
       const auto device = p_node->Input(4).toOptional<c10::Device>();
       const auto pin_memory = p_node->Input(5).toOptional<bool>();
-      p_node->Output(0) =
-          at::native::full(size, fill_value, dtype, layout, device, pin_memory);
+      p_node->Output(0) = at::native::full(
+          size, fill_value, dtype, layout, device, pin_memory, memory_format);
       return;
     }
-    p_node->Output(0) =
-        at::native::full_out(size, fill_value, p_node->Output(0).toTensor());
+    p_node->Output(0) = at::native::full_out(
+        size,
+        fill_value,
+        std::nullopt,
+        p_node->Output(0).toTensor());
   };
 })
 
@@ -2462,24 +2468,27 @@ REGISTER_OPERATOR_FUNCTOR(aten::full_like, aten_full_like, [](Node* n) -> SROper
 
 REGISTER_OPERATOR_FUNCTOR(aten::ones, aten_ones, [](Node* n) -> SROperator {
   if (!n->matches(torch::schema(
-          "aten::ones(int[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"))) {
+          "aten::ones(int[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"))) {
     LogAndDumpSchema(n);
     return nullptr;
   }
   return [](ProcessedNode* p_node) {
     const auto size = p_node->Input(0).toDimVector();
-    if (p_node->Output(0).isNone()) {
-      const auto dtype = p_node->Input(1).toOptional<c10::ScalarType>();
-      const auto layout = p_node->Input(2).toOptional<c10::Layout>();
+    const auto dtype = p_node->Input(1).toOptional<c10::ScalarType>();
+    const auto layout = p_node->Input(2).toOptional<c10::Layout>();
+    const auto memory_format =
+        p_node->Input(5).toOptional<c10::MemoryFormat>();
+    if (!hasTensorWithOptions(
+            p_node->Output(0), dtype, layout, memory_format)) {
       const auto device = p_node->Input(3).toOptional<c10::Device>();
       const auto pin_memory = p_node->Input(4).toOptional<bool>();
-      p_node->Output(0) =
-          at::native::ones(size, dtype, layout, device, pin_memory);
+      p_node->Output(0) = at::native::ones(
+          size, dtype, layout, device, pin_memory, memory_format);
       return;
     }
     auto& out_t = p_node->Output(0).toTensor();
     fastResizeToZero(out_t);
-    at::native::ones_out(size, out_t);
+    at::native::ones_out(size, std::nullopt, out_t);
   };
 })
 
@@ -2504,13 +2513,13 @@ REGISTER_OPERATOR_FUNCTOR(aten::ones_like, aten_ones_like, [](Node* n) -> SROper
     }
     auto& out_t = p_node->Output(0).toTensor();
     fastResizeToZero(out_t);
-    at::native::ones_out(self.sizes(), out_t);
+    at::native::ones_out(self.sizes(), std::nullopt, out_t);
   };
 })
 
 REGISTER_OPERATOR_FUNCTOR(aten::zeros, aten_zeros, [](Node* n) -> SROperator {
   if (!n->matches(torch::schema(
-          "aten::zeros(int[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor"))) {
+          "aten::zeros(int[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> Tensor"))) {
     LogAndDumpSchema(n);
     return nullptr;
   }
@@ -2518,14 +2527,17 @@ REGISTER_OPERATOR_FUNCTOR(aten::zeros, aten_zeros, [](Node* n) -> SROperator {
     const auto size = p_node->Input(0).toDimVector();
     const auto dtype = p_node->Input(1).toOptional<c10::ScalarType>();
     const auto layout = p_node->Input(2).toOptional<c10::Layout>();
-    if (!hasTensorWithOptions(p_node->Output(0), dtype, layout)) {
+    const auto memory_format =
+        p_node->Input(5).toOptional<c10::MemoryFormat>();
+    if (!hasTensorWithOptions(
+            p_node->Output(0), dtype, layout, memory_format)) {
       p_node->Output(0) = at::compositeexplicitautograd::zeros(
-          size, dtype, layout, std::nullopt, std::nullopt);
+          size, dtype, layout, std::nullopt, std::nullopt, memory_format);
       return;
     }
     auto& out_t = p_node->Output(0).toTensor();
     fastResizeToZero(out_t);
-    at::compositeexplicitautograd::zeros_out(out_t, size);
+    at::compositeexplicitautograd::zeros_out(out_t, size, std::nullopt);
   };
 })
 

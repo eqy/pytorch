@@ -4408,7 +4408,6 @@ def tensor_constructor(fill_value):
         memory_format=None,
     ):
         assert_nyi(layout in (None, torch.strided), f"layout={layout}")
-        assert_nyi(not memory_format, "memory_format")
         device = decode_device(device)
         dtype = dtype or torch.get_default_dtype()
         if len(size) == 1 and isinstance(size[0], (list, tuple, torch.Size)):

@@ -732,30 +732,33 @@ REGISTER_CPU_KERNEL("torch.ops.aten.full.default", aten_full, {
   const auto fill_value = KernelInput(1).toScalar();
   const auto dtype = KernelInput(2).toOptional<c10::ScalarType>();
   const auto layout = KernelInput(3).toOptional<c10::Layout>();
-  if (!hasTensorWithOptions(KernelOutput(0), dtype, layout)) {
+  const auto memory_format = KernelInput(6).toOptional<c10::MemoryFormat>();
+  if (!hasTensorWithOptions(KernelOutput(0), dtype, layout, memory_format)) {
     const auto device = KernelInput(4).toOptional<c10::Device>();
     const auto pin_memory = KernelInput(5).toOptional<bool>();
-    KernelOutput(0) =
-        at::native::full(size, fill_value, dtype, layout, device, pin_memory);
+    KernelOutput(0) = at::native::full(
+        size, fill_value, dtype, layout, device, pin_memory, memory_format);
     return;
   }
-  KernelOutput(0) =
-      at::native::full_out(size, fill_value, KernelOutput(0).toTensor());
+  KernelOutput(0) = at::native::full_out(
+      size, fill_value, std::nullopt, KernelOutput(0).toTensor());
 })
 
 REGISTER_CPU_KERNEL("torch.ops.aten.ones.default", aten_ones, {
   const auto size = KernelInput(0).toDimVector();
-  if (KernelOutput(0).isNone()) {
-    const auto dtype = KernelInput(1).toOptional<c10::ScalarType>();
-    const auto layout = KernelInput(2).toOptional<c10::Layout>();
+  const auto dtype = KernelInput(1).toOptional<c10::ScalarType>();
+  const auto layout = KernelInput(2).toOptional<c10::Layout>();
+  const auto memory_format = KernelInput(5).toOptional<c10::MemoryFormat>();
+  if (!hasTensorWithOptions(KernelOutput(0), dtype, layout, memory_format)) {
     const auto device = KernelInput(3).toOptional<c10::Device>();
     const auto pin_memory = KernelInput(4).toOptional<bool>();
-    KernelOutput(0) = at::native::ones(size, dtype, layout, device, pin_memory);
+    KernelOutput(0) = at::native::ones(
+        size, dtype, layout, device, pin_memory, memory_format);
     return;
   }
   auto& out_t = KernelOutput(0).toTensor();
   fastResizeToZero(out_t);
-  at::native::ones_out(size, out_t);
+  at::native::ones_out(size, std::nullopt, out_t);
 })
 
 REGISTER_CPU_KERNEL("torch.ops.aten.ones_like.default", aten_ones_like, {
@@ -772,21 +775,22 @@ REGISTER_CPU_KERNEL("torch.ops.aten.ones_like.default", aten_ones_like, {
   }
   auto& out_t = KernelOutput(0).toTensor();
   fastResizeToZero(out_t);
-  at::native::ones_out(self.sizes(), out_t);
+  at::native::ones_out(self.sizes(), std::nullopt, out_t);
 })
 
 REGISTER_CPU_KERNEL("torch.ops.aten.zeros.default", aten_zeros, {
   const auto size = KernelInput(0).toDimVector();
   const auto dtype = KernelInput(1).toOptional<c10::ScalarType>();
   const auto layout = KernelInput(2).toOptional<c10::Layout>();
-  if (!hasTensorWithOptions(KernelOutput(0), dtype, layout)) {
+  const auto memory_format = KernelInput(5).toOptional<c10::MemoryFormat>();
+  if (!hasTensorWithOptions(KernelOutput(0), dtype, layout, memory_format)) {
     KernelOutput(0) = at::compositeexplicitautograd::zeros(
-        size, dtype, layout, std::nullopt, std::nullopt);
+        size, dtype, layout, std::nullopt, std::nullopt, memory_format);
     return;
   }
   auto& out_t = KernelOutput(0).toTensor();
   fastResizeToZero(out_t);
-  at::compositeexplicitautograd::zeros_out(out_t, size);
+  at::compositeexplicitautograd::zeros_out(out_t, size, std::nullopt);
 })
 
 REGISTER_CPU_KERNEL(

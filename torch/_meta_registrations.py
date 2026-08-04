@@ -508,8 +508,15 @@ def meta_randperm_default(
     )
 
 
+def _check_factory_memory_format_for_out(memory_format, is_out):
+    torch._check(
+        not is_out or memory_format is None,
+        lambda: "'memory_format' argument is incompatible with 'out' tensor argument",
+    )
+
+
 @register_meta([aten.randint.default, aten.randint.out])
-@out_wrapper()
+@out_wrapper(pass_is_out=True)
 def meta_randint(
     high,
     size,
@@ -518,19 +525,27 @@ def meta_randint(
     layout=None,
     device=None,
     pin_memory=None,
+    memory_format=None,
+    is_out=False,
 ):
+    _check_factory_memory_format_for_out(memory_format, is_out)
     low = 0
     torch._check(
         high > low,
         lambda: f"random_ expects 'from' to be less than 'to', but got from={low} >= to={high}",
     )
     return torch.empty(
-        size, dtype=dtype, layout=layout, device=device, pin_memory=pin_memory
+        size,
+        dtype=dtype,
+        layout=layout,
+        device=device,
+        pin_memory=pin_memory,
+        memory_format=memory_format,
     )
 
 
 @register_meta([aten.randint.low, aten.randint.low_out])
-@out_wrapper()
+@out_wrapper(pass_is_out=True)
 def meta_randint_low(
     low,
     high,
@@ -540,21 +555,44 @@ def meta_randint_low(
     layout=None,
     device=None,
     pin_memory=None,
+    memory_format=None,
+    is_out=False,
 ):
+    _check_factory_memory_format_for_out(memory_format, is_out)
     torch._check(
         high > low,
         lambda: f"random_ expects 'from' to be less than 'to', but got from={low} >= to={high}",
     )
     return torch.empty(
-        size, dtype=dtype, layout=layout, device=device, pin_memory=pin_memory
+        size,
+        dtype=dtype,
+        layout=layout,
+        device=device,
+        pin_memory=pin_memory,
+        memory_format=memory_format,
     )
 
 
 @register_meta([aten.rand.default, aten.rand.out])
-@out_wrapper()
-def meta_rand_default(size, *, dtype=None, layout=None, device=None, pin_memory=None):
+@out_wrapper(pass_is_out=True)
+def meta_rand_default(
+    size,
+    *,
+    dtype=None,
+    layout=None,
+    device=None,
+    pin_memory=None,
+    memory_format=None,
+    is_out=False,
+):
+    _check_factory_memory_format_for_out(memory_format, is_out)
     return torch.empty(
-        size, dtype=dtype, layout=layout, device=device, pin_memory=pin_memory
+        size,
+        dtype=dtype,
+        layout=layout,
+        device=device,
+        pin_memory=pin_memory,
+        memory_format=memory_format,
     )
 
 
@@ -5948,7 +5986,7 @@ def zeros_like(
 
 
 @register_meta([aten.ones.default, aten.ones.out])
-@out_wrapper()
+@out_wrapper(pass_is_out=True)
 def meta_ones(
     size,
     *,
@@ -5957,7 +5995,10 @@ def meta_ones(
     device=None,
     pin_memory=None,
     requires_grad=False,
+    memory_format=None,
+    is_out=False,
 ):
+    _check_factory_memory_format_for_out(memory_format, is_out)
     if dtype is None:
         dtype = torch.get_default_dtype()
     if device is None:
@@ -5965,12 +6006,17 @@ def meta_ones(
     if layout is None:
         layout = torch.strided
     return torch.empty(
-        size, dtype=dtype, layout=layout, device=device, pin_memory=pin_memory
+        size,
+        dtype=dtype,
+        layout=layout,
+        device=device,
+        pin_memory=pin_memory,
+        memory_format=memory_format,
     )
 
 
 @register_meta([aten.zeros.default, aten.zeros.out])
-@out_wrapper()
+@out_wrapper(pass_is_out=True)
 def meta_zeros(
     size,
     *,
@@ -5979,7 +6025,10 @@ def meta_zeros(
     device=None,
     pin_memory=None,
     requires_grad=False,
+    memory_format=None,
+    is_out=False,
 ):
+    _check_factory_memory_format_for_out(memory_format, is_out)
     if dtype is None:
         dtype = torch.get_default_dtype()
     if device is None:
@@ -5987,7 +6036,12 @@ def meta_zeros(
     if layout is None:
         layout = torch.strided
     return torch.empty(
-        size, dtype=dtype, layout=layout, device=device, pin_memory=pin_memory
+        size,
+        dtype=dtype,
+        layout=layout,
+        device=device,
+        pin_memory=pin_memory,
+        memory_format=memory_format,
     )
 
 

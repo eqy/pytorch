@@ -30,7 +30,7 @@ Tensor my_rand_with_generator(std::vector<int64_t> size, Generator generator) {
       torch::stable::detail::from(std::optional<torch::stable::Device>(device));
   stack[5] = torch::stable::detail::from(std::nullopt); // pin_memory
   STABLE_TORCH_ERROR_CODE_CHECK(torch_call_dispatcher(
-      "aten::rand", "generator", stack, TORCH_ABI_VERSION));
+      "aten::rand", "generator", stack, TORCH_VERSION_2_13_0));
   return torch::stable::detail::to<Tensor>(stack[0]);
 }
 

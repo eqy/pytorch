@@ -126,6 +126,13 @@ void window_function_checks(
       window_length);
 }
 
+void check_out_memory_format(
+    std::optional<c10::MemoryFormat> optional_memory_format) {
+  TORCH_CHECK(
+      !optional_memory_format.has_value(),
+      "'memory_format' argument is incompatible with 'out' tensor argument");
+}
+
 } // namespace
 
 DEFINE_DISPATCH(complex_stub);
@@ -365,9 +372,7 @@ Tensor& empty_out(
     Tensor& result) {
   // Preferably, this argument would not be accepted by _out, but the code
   // generator requires the out and non-out overloads to match exactly
-  TORCH_CHECK(
-      !optional_memory_format.has_value(),
-      "'memory_format' argument is incompatible with 'out' tensor argument");
+  check_out_memory_format(optional_memory_format);
   check_size_nonnegative(size);
   if (result.is_sparse()) {
     result.sparse_resize_and_clear_(size, size.size(), 0);
@@ -683,7 +688,8 @@ Tensor full(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   // See [Note: hacky wrapper removal for TensorOptions]
   TensorOptions options =
       TensorOptions().dtype(dtype).layout(layout).device(device).pinned_memory(
@@ -693,11 +699,17 @@ Tensor full(
       options.layout() != kSparse,
       "full(...) is not implemented for sparse layout");
 
-  auto result = at::empty(size, infer_full_options(fill_value, options));
+  auto result = at::empty(
+      size, infer_full_options(fill_value, options), optional_memory_format);
   return result.fill_(fill_value);
 }
 
-Tensor& full_out(IntArrayRef size, const Scalar& fill_value, Tensor& result) {
+Tensor& full_out(
+    IntArrayRef size,
+    const Scalar& fill_value,
+    std::optional<c10::MemoryFormat> optional_memory_format,
+    Tensor& result) {
+  check_out_memory_format(optional_memory_format);
   TORCH_CHECK(
       !result.is_sparse(), "full(...) is not implemented for sparse layout");
 
@@ -932,13 +944,24 @@ Tensor ones(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   return native::full(
-      size, /*fill_value=*/1., dtype, layout, device, pin_memory);
+      size,
+      /*fill_value=*/1.,
+      dtype,
+      layout,
+      device,
+      pin_memory,
+      optional_memory_format);
 }
 
-Tensor& ones_out(IntArrayRef size, Tensor& result) {
-  return native::full_out(size, /*fill_value=*/1., result);
+Tensor& ones_out(
+    IntArrayRef size,
+    std::optional<c10::MemoryFormat> optional_memory_format,
+    Tensor& result) {
+  return native::full_out(
+      size, /*fill_value=*/1., optional_memory_format, result);
 }
 
 // SymInt-aware Meta kernel for ones
@@ -947,13 +970,17 @@ Tensor ones_meta_symint(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   TensorOptions options =
       TensorOptions().dtype(dtype).layout(layout).device(device).pinned_memory(
           pin_memory);
   TORCH_CHECK_NOT_IMPLEMENTED(
       options.layout() != kSparse, "ones is not implemented for sparse layout");
-  return at::empty_symint(size, infer_full_options(/*fill_value=*/1., options));
+  return at::empty_symint(
+      size,
+      infer_full_options(/*fill_value=*/1., options),
+      optional_memory_format);
 }
 
 Tensor ones_like(
@@ -1030,14 +1057,16 @@ Tensor rand(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   return native::rand(
       size,
       static_cast<std::optional<Generator>>(std::nullopt),
       dtype,
       layout,
       device,
-      pin_memory);
+      pin_memory,
+      optional_memory_format);
 }
 
 Tensor rand(
@@ -1046,24 +1075,30 @@ Tensor rand(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   // See [Note: hacky wrapper removal for TensorOptions]
   TensorOptions options =
       TensorOptions().dtype(dtype).layout(layout).device(device).pinned_memory(
           pin_memory);
 
-  auto result = at::empty(size, options);
+  auto result = at::empty(size, options, optional_memory_format);
   return result.uniform_(0, 1, std::move(generator));
 }
 
-Tensor& rand_out(IntArrayRef size, Tensor& result) {
-  return native::rand_out(size, std::nullopt, result);
+Tensor& rand_out(
+    IntArrayRef size,
+    std::optional<c10::MemoryFormat> optional_memory_format,
+    Tensor& result) {
+  return native::rand_out(size, std::nullopt, optional_memory_format, result);
 }
 
 Tensor& rand_out(
     IntArrayRef size,
     std::optional<Generator> generator,
+    std::optional<c10::MemoryFormat> optional_memory_format,
     Tensor& result) {
+  check_out_memory_format(optional_memory_format);
   result.resize_(size);
   return result.uniform_(0, 1, std::move(generator));
 }
@@ -1110,7 +1145,8 @@ Tensor randint(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   return native::randint(
       high,
       size,
@@ -1118,7 +1154,8 @@ Tensor randint(
       dtype,
       layout,
       device,
-      pin_memory);
+      pin_memory,
+      optional_memory_format);
 }
 
 Tensor randint(
@@ -1128,9 +1165,18 @@ Tensor randint(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   return native::randint(
-      0, high, size, std::move(generator), dtype, layout, device, pin_memory);
+      0,
+      high,
+      size,
+      std::move(generator),
+      dtype,
+      layout,
+      device,
+      pin_memory,
+      optional_memory_format);
 }
 
 Tensor randint(
@@ -1140,9 +1186,18 @@ Tensor randint(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   return native::randint(
-      low, high, size, std::nullopt, dtype, layout, device, pin_memory);
+      low,
+      high,
+      size,
+      std::nullopt,
+      dtype,
+      layout,
+      device,
+      pin_memory,
+      optional_memory_format);
 }
 
 Tensor randint(
@@ -1153,25 +1208,33 @@ Tensor randint(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   // See [Note: hacky wrapper removal for TensorOptions]
   TensorOptions options =
       TensorOptions().dtype(dtype).layout(layout).device(device).pinned_memory(
           pin_memory);
 
-  auto result = at::empty(size, options);
+  auto result = at::empty(size, options, optional_memory_format);
   return result.random_(low, high, std::move(generator));
 }
 
-Tensor& randint_out(int64_t high, IntArrayRef size, Tensor& result) {
-  return native::randint_out(high, size, std::nullopt, result);
+Tensor& randint_out(
+    int64_t high,
+    IntArrayRef size,
+    std::optional<c10::MemoryFormat> optional_memory_format,
+    Tensor& result) {
+  return native::randint_out(
+      high, size, std::nullopt, optional_memory_format, result);
 }
 
 Tensor& randint_out(
     int64_t high,
     IntArrayRef size,
     std::optional<Generator> generator,
+    std::optional<c10::MemoryFormat> optional_memory_format,
     Tensor& result) {
+  check_out_memory_format(optional_memory_format);
   result.resize_(size);
   return result.random_(0, high, std::move(generator));
 }
@@ -1180,8 +1243,10 @@ Tensor& randint_out(
     int64_t low,
     int64_t high,
     IntArrayRef size,
+    std::optional<c10::MemoryFormat> optional_memory_format,
     Tensor& result) {
-  return native::randint_out(low, high, size, std::nullopt, result);
+  return native::randint_out(
+      low, high, size, std::nullopt, optional_memory_format, result);
 }
 
 Tensor& randint_out(
@@ -1189,7 +1254,9 @@ Tensor& randint_out(
     int64_t high,
     IntArrayRef size,
     std::optional<Generator> generator,
+    std::optional<c10::MemoryFormat> optional_memory_format,
     Tensor& result) {
+  check_out_memory_format(optional_memory_format);
   result.resize_(size);
   return result.random_(low, high, std::move(generator));
 }
@@ -1333,14 +1400,16 @@ Tensor randn(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   return native::randn(
       size,
       static_cast<std::optional<Generator>>(std::nullopt),
       dtype,
       layout,
       device,
-      pin_memory);
+      pin_memory,
+      optional_memory_format);
 }
 
 Tensor randn(
@@ -1349,24 +1418,30 @@ Tensor randn(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   // See [Note: hacky wrapper removal for TensorOptions]
   TensorOptions options =
       TensorOptions().dtype(dtype).layout(layout).device(device).pinned_memory(
           pin_memory);
 
-  auto result = at::empty(size, options);
+  auto result = at::empty(size, options, optional_memory_format);
   return result.normal_(0, 1, std::move(generator));
 }
 
-Tensor& randn_out(IntArrayRef size, Tensor& result) {
-  return native::randn_out(size, std::nullopt, result);
+Tensor& randn_out(
+    IntArrayRef size,
+    std::optional<c10::MemoryFormat> optional_memory_format,
+    Tensor& result) {
+  return native::randn_out(size, std::nullopt, optional_memory_format, result);
 }
 
 Tensor& randn_out(
     IntArrayRef size,
     std::optional<Generator> generator,
+    std::optional<c10::MemoryFormat> optional_memory_format,
     Tensor& result) {
+  check_out_memory_format(optional_memory_format);
   result.resize_(size);
   return result.normal_(0, 1, std::move(generator));
 }
@@ -1379,13 +1454,14 @@ Tensor normal(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   // See [Note: hacky wrapper removal for TensorOptions]
   TensorOptions options =
       TensorOptions().dtype(dtype).layout(layout).device(device).pinned_memory(
           pin_memory);
 
-  auto result = at::empty(size, options);
+  auto result = at::empty(size, options, optional_memory_format);
   return result.normal_(mean, std, std::move(generator));
 }
 
@@ -1394,7 +1470,9 @@ Tensor& normal_out(
     double std,
     IntArrayRef size,
     std::optional<Generator> generator,
+    std::optional<c10::MemoryFormat> optional_memory_format,
     Tensor& result) {
+  check_out_memory_format(optional_memory_format);
   result.resize_(size);
   return result.normal_(mean, std, std::move(generator));
 }
@@ -1731,11 +1809,15 @@ Tensor zeros_symint(
     std::optional<ScalarType> dtype,
     std::optional<Layout> layout,
     std::optional<Device> device,
-    std::optional<bool> pin_memory) {
+    std::optional<bool> pin_memory,
+    std::optional<c10::MemoryFormat> optional_memory_format) {
   for (const auto& dim_size : size) {
     TORCH_CHECK(dim_size >= 0, "zeros: Dimension size must be non-negative.");
   }
   Layout layout_ = layout.value_or(Layout::Strided);
+  TORCH_CHECK(
+      layout_ == Layout::Strided || !optional_memory_format.has_value(),
+      "memory format option is only supported by strided tensors");
   if (at::sparse_csr::is_sparse_compressed(layout_)) {
     return zeros_sparse_compressed_symint(
         size, dtype, layout_, device, pin_memory);
@@ -1744,7 +1826,7 @@ Tensor zeros_symint(
   TensorOptions options =
       TensorOptions().dtype(dtype).layout(layout).device(device).pinned_memory(
           pin_memory);
-  auto result = at::empty_symint(size, options);
+  auto result = at::empty_symint(size, options, optional_memory_format);
   return result.zero_();
 }
 
@@ -1780,12 +1862,20 @@ Tensor _efficientzerotensor_meta_symint(
   return out;
 }
 
-Tensor& zeros_sparse_out(IntArrayRef size, Tensor& result) {
+Tensor& zeros_sparse_out(
+    IntArrayRef size,
+    std::optional<c10::MemoryFormat> optional_memory_format,
+    Tensor& result) {
+  check_out_memory_format(optional_memory_format);
   result.sparse_resize_and_clear_(size, size.size(), 0.);
   return result;
 }
 
-Tensor& zeros_out(IntArrayRef size, Tensor& result) {
+Tensor& zeros_out(
+    IntArrayRef size,
+    std::optional<c10::MemoryFormat> optional_memory_format,
+    Tensor& result) {
+  check_out_memory_format(optional_memory_format);
   if (result.is_sparse()) {
     // TODO: I think this branch should be dead, but we don't have an easy
     // way to cover all sparse kernels with zeros_sparse_out, so retain this

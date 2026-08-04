@@ -5308,6 +5308,7 @@ def zeros(
     device: DeviceLikeType | None = None,
     pin_memory: bool = False,
     requires_grad: bool = False,
+    memory_format: torch.memory_format = torch.contiguous_format,
 ) -> TensorLikeType:
     size = utils.extract_shape_from_varargs(size)
 
@@ -5322,6 +5323,7 @@ def zeros(
         device=device,
         pin_memory=pin_memory,
         requires_grad=requires_grad,
+        memory_format=memory_format,
     )
 
 
@@ -5361,6 +5363,7 @@ def ones(
     device: DeviceLikeType | None = None,
     pin_memory: bool = False,
     requires_grad: bool = False,
+    memory_format: torch.memory_format = torch.contiguous_format,
 ) -> TensorLikeType:
     size = utils.extract_shape_from_varargs(size)
 
@@ -5375,6 +5378,7 @@ def ones(
         device=device,
         pin_memory=pin_memory,
         requires_grad=requires_grad,
+        memory_format=memory_format,
     )
 
 
@@ -6013,7 +6017,7 @@ def eye(
 
 
 @register_decomposition([aten.full.default, aten.full.out])
-@out_wrapper()
+@out_wrapper(pass_is_out=True)
 def full(
     shape: ShapeType,
     fill_value: NumberType,
@@ -6023,7 +6027,14 @@ def full(
     device: DeviceLikeType | None = None,
     pin_memory: bool = False,
     requires_grad: bool = False,
+    memory_format: torch.memory_format | None = None,
+    is_out: bool = False,
 ) -> TensorLikeType:
+    torch._check(
+        not is_out or memory_format is None,
+        lambda: "'memory_format' argument is incompatible with 'out' tensor argument",
+    )
+    memory_format = torch.contiguous_format if memory_format is None else memory_format
     utils.check_layout(layout)
     utils.check_pin_memory(pin_memory)
 
@@ -6037,6 +6048,7 @@ def full(
         device=device,
         pin_memory=pin_memory,
         requires_grad=requires_grad,
+        memory_format=memory_format,
     )
     return torch.fill(e, fill_value)  # type: ignore[arg-type]
 
@@ -6113,7 +6125,7 @@ def ones_like(
 
 
 @register_decomposition(aten.randn.default)
-@out_wrapper()
+@out_wrapper(pass_is_out=True)
 def randn(
     *shape,
     dtype: torch.dtype | None = None,
@@ -6121,7 +6133,18 @@ def randn(
     layout: torch.layout | None = None,
     requires_grad: bool = False,
     pin_memory: bool = False,
+    memory_format: torch.memory_format | None = None,
+    is_out: bool = False,
 ) -> TensorLikeType:
+    torch._check(
+        not is_out or memory_format is None,
+        lambda: "'memory_format' argument is incompatible with 'out' tensor argument",
+    )
+    memory_format = torch.contiguous_format if memory_format is None else memory_format
+    torch._check(
+        memory_format != torch.preserve_format,
+        lambda: "torch.randn: the Preserve memory format is not supported",
+    )
     utils.check_pin_memory(pin_memory)
 
     shape_ = utils.extract_shape_from_varargs(shape)
@@ -6129,7 +6152,7 @@ def randn(
     dtype = utils.dtype_or_default(dtype)
     device = utils.device_or_default(device)
 
-    return prims.normal(
+    result = prims.normal(
         shape_,
         mean=0.0,
         std=1.0,
@@ -6137,6 +6160,9 @@ def randn(
         device=device,
         requires_grad=requires_grad,
     )
+    if memory_format != torch.contiguous_format:
+        result = result.to(memory_format=memory_format)
+    return result
 
 
 def scalar_tensor(
@@ -6673,7 +6699,7 @@ def log_normal(self, mean=1, std=2, generator=None):
 
 # NOTE: the device and dtype will be ignored when shape is None
 @register_decomposition(aten.normal)
-@out_wrapper()
+@out_wrapper(pass_is_out=True)
 @elementwise_type_promotion_wrapper(
     type_promoting_args=(
         "mean",
@@ -6691,7 +6717,13 @@ def normal(
     layout=None,
     device=None,
     pin_memory=None,
+    memory_format=None,
+    is_out=False,
 ):
+    torch._check(
+        not is_out or memory_format is None,
+        lambda: "'memory_format' argument is incompatible with 'out' tensor argument",
+    )
     if layout is not None and layout != torch.strided:
         raise AssertionError(f"layout must be None or torch.strided, got {layout}")
 
@@ -6707,8 +6739,8 @@ def normal(
             lambda: "normal expects that either mean or std is a tensor, or size is defined",
         )
         torch._check(
-            layout is None and pin_memory is None,
-            lambda: "Cannot pass layout, or pin_memory without size",
+            layout is None and pin_memory is None and memory_format is None,
+            lambda: "Cannot pass layout, pin_memory, or memory_format without size",
         )
 
         size = _broadcast_shapes(*(t.shape for t in tensors))
@@ -6721,6 +6753,10 @@ def normal(
         )
         dtype = torch.get_default_dtype() if dtype is None else dtype
         device = torch.device("cpu") if device is None else device
+        torch._check(
+            memory_format != torch.preserve_format,
+            lambda: "torch.normal: the Preserve memory format is not supported",
+        )
 
     normal_samples = prims.normal(
         size,
@@ -6731,7 +6767,10 @@ def normal(
         requires_grad=False,
         generator=generator,
     )
-    return std * normal_samples + mean
+    result = std * normal_samples + mean
+    if memory_format not in (None, torch.contiguous_format):
+        result = result.to(memory_format=memory_format)
+    return result
 
 
 @register_decomposition(aten.normal_)

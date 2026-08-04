@@ -97,6 +97,17 @@ def _rand_shape(dim, min_size, max_size):
 # See https://pytorch.org/docs/main/torch.html#creation-ops
 
 class TestTensorCreation(TestCase):
+    def _call_factory_with_memory_format(self, factory, shape, device, **kwargs):
+        if factory == "full":
+            return torch.full(shape, 2, device=device, **kwargs)
+        if factory == "randint":
+            return torch.randint(10, shape, device=device, **kwargs)
+        if factory == "randint_low":
+            return torch.randint(2, 10, shape, device=device, **kwargs)
+        if factory == "normal":
+            return torch.normal(0, 1, size=shape, device=device, **kwargs)
+        return getattr(torch, factory)(shape, device=device, **kwargs)
+
     exact_dtype = True
 
     @onlyCPU
@@ -3020,6 +3031,112 @@ class TestTensorCreation(TestCase):
         self.assertEqual((0,), torch.kaiser_window(0, device=device).shape)
         self.assertEqual((1, 1, 0), torch.tensor([[[]]], device=device).shape)
         self.assertEqual((1, 1, 0), torch.as_tensor([[[]]], device=device).shape)
+
+    @onlyNativeDeviceTypes
+    @parametrize(
+        "factory",
+        [
+            "empty",
+            "zeros",
+            "ones",
+            "full",
+            "rand",
+            "randn",
+            "randint",
+            "randint_low",
+            "normal",
+        ],
+    )
+    @parametrize(
+        "memory_format,shape",
+        [
+            (torch.channels_last, (2, 3, 4, 5)),
+            (torch.channels_last_3d, (2, 3, 4, 5, 6)),
+        ],
+    )
+    def test_factory_memory_format(self, device, factory, memory_format, shape):
+        result = self._call_factory_with_memory_format(
+            factory, shape, device, memory_format=memory_format
+        )
+
+        self.assertTrue(result.is_contiguous(memory_format=memory_format))
+        self.assertFalse(result.is_contiguous())
+
+    @onlyCPU
+    @parametrize(
+        "factory",
+        [
+            "empty",
+            "zeros",
+            "ones",
+            "full",
+            "rand",
+            "randn",
+            "randint",
+            "randint_low",
+            "normal",
+        ],
+    )
+    def test_factory_memory_format_meta(self, device, factory):
+        result = self._call_factory_with_memory_format(
+            factory,
+            (2, 3, 4, 5),
+            "meta",
+            memory_format=torch.channels_last,
+        )
+
+        self.assertTrue(result.is_contiguous(memory_format=torch.channels_last))
+
+    @onlyNativeDeviceTypes
+    @parametrize("factory", ["rand", "randn", "randint", "randint_low", "normal"])
+    def test_random_factory_memory_format_generator(self, device, factory):
+        result = self._call_factory_with_memory_format(
+            factory,
+            (2, 3, 4, 5),
+            device,
+            generator=None,
+            memory_format=torch.channels_last,
+        )
+
+        self.assertTrue(result.is_contiguous(memory_format=torch.channels_last))
+
+    @onlyNativeDeviceTypes
+    @parametrize(
+        "factory",
+        [
+            "empty",
+            "zeros",
+            "ones",
+            "full",
+            "rand",
+            "randn",
+            "randint",
+            "randint_low",
+            "normal",
+        ],
+    )
+    def test_factory_memory_format_errors(self, device, factory):
+        shape = (2, 3, 4, 5)
+        with self.assertRaises(RuntimeError):
+            self._call_factory_with_memory_format(
+                factory,
+                shape,
+                device,
+                memory_format=torch.preserve_format,
+            )
+
+        out = torch.empty(shape, device=device)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "'memory_format' argument is incompatible with 'out' tensor argument",
+        ):
+            self._call_factory_with_memory_format(
+                factory,
+                shape,
+                device,
+                out=out,
+                memory_format=torch.channels_last,
+            )
 
     @onlyCUDA
     def test_tensor_factory_gpu_type_inference(self, device):

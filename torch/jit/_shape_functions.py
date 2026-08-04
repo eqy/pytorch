@@ -1398,7 +1398,7 @@ add_shape_compute_mapping(
 )
 add_shape_compute_mapping("prim::NumToTensor.bool(bool a) -> Tensor", zero_dim_tensor)
 add_shape_compute_mapping(
-    "aten::zeros(int[] size, *, int? dtype=None, int? layout=None, Device? device=None, bool? pin_memory=None) -> (Tensor)",
+    "aten::zeros(int[] size, *, int? dtype=None, int? layout=None, Device? device=None, bool? pin_memory=None, MemoryFormat? memory_format=None) -> (Tensor)",
     unary,
 )
 add_shape_compute_mapping(

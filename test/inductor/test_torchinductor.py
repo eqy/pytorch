@@ -19414,6 +19414,41 @@ def forward(self, arg0_1: "Sym(s77)", arg1_1: "Sym(s27)", arg2_1: "Sym(s53)", ar
         for _ in range(4):
             self.assertEqual(compiled(x, a, b), fn(x, a, b))
 
+    @parametrize(
+        "factory",
+        [
+            "empty",
+            "zeros",
+            "ones",
+            "full",
+            "rand",
+            "randn",
+            "randint",
+            "randint_low",
+            "normal",
+        ],
+    )
+    def test_factory_memory_format(self, factory):
+        shape = (2, 3, 4, 5)
+
+        def fn():
+            kwargs = {
+                "device": self.device,
+                "memory_format": torch.channels_last,
+            }
+            if factory == "full":
+                return torch.full(shape, 2, **kwargs)
+            if factory == "randint":
+                return torch.randint(10, shape, **kwargs)
+            if factory == "randint_low":
+                return torch.randint(2, 10, shape, **kwargs)
+            if factory == "normal":
+                return torch.normal(0, 1, size=shape, **kwargs)
+            return getattr(torch, factory)(shape, **kwargs)
+
+        result = torch.compile(fn, fullgraph=True)()
+        self.assertEqual(result.stride(), (60, 1, 15, 3))
+
     # end of class CommonTemplate - add new tests here
 
 

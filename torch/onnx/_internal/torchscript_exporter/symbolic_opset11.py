@@ -1293,6 +1293,7 @@ def normal(
     layout=None,
     device=None,
     pin_memory=None,
+    memory_format=None,
 ):
     # If you can sample from a given distribution with mean 0 and variance 1, then you can easily sample from a
     # scale-location transformation of that distribution, which has mean mu and variance sigma's square. If x is a sample

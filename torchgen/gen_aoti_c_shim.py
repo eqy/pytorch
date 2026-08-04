@@ -221,9 +221,17 @@ def gen_arguments(
             if arg.default is not None:
                 from torchgen.api.cpp import default_expr
 
-                callsite_exprs.append(default_expr(arg.default, arg.type, symint=False))
+                default = default_expr(arg.default, arg.type, symint=False)
             else:
-                callsite_exprs.append("std::nullopt")
+                default = "std::nullopt"
+            if isinstance(arg.type, OptionalType) and default.endswith("nullopt"):
+                _, _, aten_types, _ = convert_arg_type_and_name(arg.type, arg.name)
+                if len(aten_types) != 1:
+                    raise AssertionError(
+                        f"Optional argument {arg.name} has multiple ATen types"
+                    )
+                default = f"{aten_types[0]}{{}}"
+            callsite_exprs.append(default)
             continue
         new_types, names, _, new_callsite_exprs = convert_arg_type_and_name(
             arg.type, arg.name, arg.is_write

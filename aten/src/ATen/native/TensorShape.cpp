@@ -937,14 +937,16 @@ static Tensor cat_sparse_impl(
           optTypeMetaToScalarType(t._values().options().dtype_opt()),
           t._values().options().layout_opt(),
           t._values().options().device_opt(),
-          t._values().options().pinned_memory_opt());
+          t._values().options().pinned_memory_opt(),
+          std::nullopt);
       zeros_sizes[values_dim] = total_size - cumulative_size;
       auto z2 = at::zeros(
           zeros_sizes,
           optTypeMetaToScalarType(t._values().options().dtype_opt()),
           t._values().options().layout_opt(),
           t._values().options().device_opt(),
-          t._values().options().pinned_memory_opt());
+          t._values().options().pinned_memory_opt(),
+          std::nullopt);
       vals_pieces.push_back(at::cat({z1, t._values(), z2}, values_dim));
       idxs_pieces.push_back(t._indices());
     }
@@ -4068,7 +4070,8 @@ Tensor unsqueeze_sparse(Tensor const& self, int64_t dim) {
              kLong,
              indices.options().layout_opt(),
              indices.options().device_opt(),
-             indices.options().pinned_memory_opt()),
+             indices.options().pinned_memory_opt(),
+             std::nullopt),
          indices.narrow(0, dim, indices.size(0) - dim)});
     return _sparse_coo_tensor_with_dims_and_tensors(
         sparse_dim + 1,

@@ -738,7 +738,8 @@ Tensor cudnn_convolution_relu(
             optTypeMetaToScalarType(output_t.options().dtype_opt()),
             output_t.options().layout_opt(),
             output_t.options().device_opt(),
-            output_t.options().pinned_memory_opt());
+            output_t.options().pinned_memory_opt(),
+            std::nullopt);
 
   raw_cudnn_convolution_add_relu_out(
       output_t,
@@ -798,7 +799,8 @@ Tensor cudnn_convolution_add_relu(
             optTypeMetaToScalarType(output_t.options().dtype_opt()),
             output_t.options().layout_opt(),
             output_t.options().device_opt(),
-            output_t.options().pinned_memory_opt());
+            output_t.options().pinned_memory_opt(),
+            std::nullopt);
 
   raw_cudnn_convolution_add_relu_out(
       output_t,

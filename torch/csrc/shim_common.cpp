@@ -22,6 +22,8 @@
 #include <torch/csrc/shim_exception_state.h>
 #include <torch/csrc/stable/c/shim.h>
 
+#include <array>
+
 AOTITorchError torch_new_list_reserve_size(size_t size, StableListHandle* ret) {
   auto list_ptr = std::make_unique<std::vector<StableIValue>>();
   list_ptr->reserve(size);
@@ -519,25 +521,49 @@ class SchemaAdapterRegistry {
 
 } // namespace
 
-// Function to register test schema adapters for _test_schema_upgrader
-// This demonstrates the adapter registration pattern (internal use only)
+static torch::jit::Stack add_memory_format_argument(
+    const c10::FunctionSchema& current_schema,
+    const StableIValue* extension_stack,
+    uint64_t extension_build_version) {
+  torch::jit::Stack stack;
+  stack.reserve(current_schema.arguments().size());
+  size_t extension_index = 0;
+  for (const auto& argument : current_schema.arguments()) {
+    if (argument.name() == "memory_format") {
+      stack.emplace_back();
+      continue;
+    }
+    torch::jit::push(
+        stack,
+        to_ivalue(
+            argument.real_type(),
+            extension_stack[extension_index++],
+            extension_build_version));
+  }
+  return stack;
+}
+
 static AOTITorchError _register_adapters() {
-  // ** Schema adapters should be registered here**
-  // Refer to https://github.com/pytorch/pytorch/pull/165284/ for an example.
-  //
-  // if (auto err = register_schema_adapter(
-  //         "aten::your_op",
-  //         VERSION_FOO, // applies to versions < VERSION_FOO
-  //         adapt_v1_to_vfoo)) {
-  //   return err;
-  // }
+  constexpr std::array<const char*, 7> factory_ops{
+      "aten::full",
+      "aten::normal",
+      "aten::ones",
+      "aten::rand",
+      "aten::randint",
+      "aten::randn",
+      "aten::zeros",
+  };
+  for (const auto* op : factory_ops) {
+    if (auto err = register_schema_adapter(
+            op, TORCH_VERSION_2_14_0, add_memory_format_argument)) {
+      return err;
+    }
+  }
   return AOTI_TORCH_SUCCESS;
 }
 
-// Static initialization to automatically register test adapters
 static struct AdapterInitializer {
   AdapterInitializer() {
-    // Register the test adapters when the library loads
     _register_adapters();
   }
 } adapter_initializer;

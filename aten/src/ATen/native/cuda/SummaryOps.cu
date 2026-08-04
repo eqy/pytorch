@@ -261,7 +261,8 @@ Tensor _bincount_cuda_template(
         kLong,
         std::nullopt /* layout */,
         kCUDA,
-        std::nullopt /* pin_memory */);
+        std::nullopt /* pin_memory */,
+        std::nullopt /* memory_format */);
   }
   TORCH_CHECK(self.dim() == 1, "bincount only supports 1-d non-negative integral inputs.");
 
@@ -292,7 +293,8 @@ Tensor _bincount_cuda_template(
         optTypeMetaToScalarType(weights.options().dtype_opt()),
         weights.options().layout_opt(),
         weights.options().device_opt(),
-        weights.options().pinned_memory_opt());
+        weights.options().pinned_memory_opt(),
+        std::nullopt);
     cuda::CUDA_tensor_histogram<weights_t, input_t, true>(
         output, self, weights, nbins, minvalue, maxvalue);
   } else {
@@ -301,7 +303,8 @@ Tensor _bincount_cuda_template(
         kLong,
         std::nullopt /* layout */,
         DeviceType::CUDA,
-        std::nullopt /* pin_memory */);
+        std::nullopt /* pin_memory */,
+        std::nullopt /* memory_format */);
     cuda::CUDA_tensor_histogram<int64_t, input_t, false>(
         output, self, weights, nbins, minvalue, maxvalue);
   }
@@ -323,7 +326,8 @@ Tensor _histc_cuda_template(
       self.scalar_type(),
       std::nullopt /* layout */,
       DeviceType::CUDA,
-      std::nullopt /* pin_memory */);
+      std::nullopt /* pin_memory */,
+      std::nullopt /* memory_format */);
   using bounds_t = at::acc_type<input_t, /*is_cuda=*/true>;
   bounds_t minvalue = min;
   bounds_t maxvalue = max;

@@ -1540,7 +1540,8 @@ SparseTensor& _sspaddmm_out_cpu(
       optTypeMetaToScalarType(values.options().dtype_opt()),
       values.options().layout_opt(),
       values.options().device_opt(),
-      values.options().pinned_memory_opt());
+      values.options().pinned_memory_opt(),
+      std::nullopt);
 
   if (t_nnz != 0) {
     Tensor narrowi = newi.narrow(1, 0, t_nnz);

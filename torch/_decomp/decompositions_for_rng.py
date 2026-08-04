@@ -30,7 +30,18 @@ def throw_on_non_cuda(device):
 # TODO - We have to register many more distributions here, and also higher level
 # ops like dropout which have fused implementation and can hide the rand inside.
 @register_rng_decomposition(aten.rand)
-def rand(shape, dtype=None, layout=torch.strided, device=None, pin_memory=False):
+def rand(
+    shape,
+    dtype=None,
+    layout=torch.strided,
+    device=None,
+    pin_memory=False,
+    memory_format=None,
+):
+    torch._check(
+        memory_format != torch.preserve_format,
+        lambda: "torch.rand: the Preserve memory format is not supported",
+    )
     if device and device.type != "cuda":
         throw_on_non_cuda(device)
     seed, offset = PhiloxStateTracker.get_state_as_tuple()
@@ -39,6 +50,8 @@ def rand(shape, dtype=None, layout=torch.strided, device=None, pin_memory=False)
         shape, seed, offset, None, device, dtype
     )
     PhiloxStateTracker.advance_offset(offset_jump)
+    if memory_format not in (None, torch.contiguous_format):
+        out = out.to(memory_format=memory_format)
     return out
 
 

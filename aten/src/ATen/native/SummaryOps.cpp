@@ -63,7 +63,8 @@ Tensor _bincount_cpu_template(
         optTypeMetaToScalarType(weights.options().dtype_opt()),
         weights.options().layout_opt(),
         weights.options().device_opt(),
-        weights.options().pinned_memory_opt());
+        weights.options().pinned_memory_opt(),
+        std::nullopt);
     weights_t* output_p = output.data_ptr<weights_t>();
     const weights_t* weights_p = weights.const_data_ptr<weights_t>();
     for (const auto i : c10::irange(self_size)) {

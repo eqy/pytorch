@@ -35,6 +35,7 @@ TORCH_LIBRARY_IMPL(_, VmapMode, m) {
 
 TORCH_LIBRARY_IMPL(aten, VmapMode, m) {
 #define TENSOROPTIONS std::optional<c10::ScalarType>, std::optional<c10::Layout>, std::optional<c10::Device>, std::optional<bool>
+#define MEMORYFORMAT std::optional<c10::MemoryFormat>
 
   // random operations (out-of-place)
   m.impl("bernoulli", unsupportedRandomOp<const Tensor&, std::optional<Generator>>);
@@ -56,8 +57,8 @@ TORCH_LIBRARY_IMPL(aten, VmapMode, m) {
   m.impl("normal.float_Tensor", unsupportedRandomOp<double, const Tensor&, std::optional<Generator>>);
   m.impl("normal.Tensor_Tensor", unsupportedRandomOp<const Tensor&, const Tensor&, std::optional<Generator>>);
   m.impl("normal.Tensor_Tensor_out", unsupportedRandomOp_<const Tensor&, const Tensor&, std::optional<Generator>, Tensor&>);
-  m.impl("normal.float_float", unsupportedRandomOp<double, double, IntArrayRef, std::optional<Generator>, TENSOROPTIONS>);
-  m.impl("normal.float_float_out", unsupportedRandomOp_<double, double, IntArrayRef, std::optional<Generator>, Tensor&>);
+  m.impl("normal.float_float", unsupportedRandomOp<double, double, IntArrayRef, std::optional<Generator>, TENSOROPTIONS, MEMORYFORMAT>);
+  m.impl("normal.float_float_out", unsupportedRandomOp_<double, double, IntArrayRef, std::optional<Generator>, MEMORYFORMAT, Tensor&>);
   m.impl("normal_", unsupportedRandomOp_<Tensor&, double, double, std::optional<Generator>>);
 
   m.impl("poisson", unsupportedRandomOp<const Tensor&, std::optional<Generator>>);
@@ -78,33 +79,34 @@ TORCH_LIBRARY_IMPL(aten, VmapMode, m) {
   m.impl("randint_like.Tensor_generator", unsupportedRandomOp<const Tensor&, const Tensor&, std::optional<Generator>, TENSOROPTIONS, std::optional<MemoryFormat>>);
   m.impl("randint_like.low_generator_dtype", unsupportedRandomOp<const Tensor&, int64_t, int64_t, std::optional<Generator>, TENSOROPTIONS, std::optional<MemoryFormat>>);
 
-  m.impl("rand", unsupportedRandomOp<IntArrayRef, TENSOROPTIONS>);
-  m.impl("rand.generator", unsupportedRandomOp<IntArrayRef, std::optional<Generator>, TENSOROPTIONS>);
-  m.impl("rand.out", unsupportedRandomOp_<IntArrayRef, Tensor&>);
-  m.impl("rand.generator_out", unsupportedRandomOp_<IntArrayRef, std::optional<Generator>, Tensor&>);
+  m.impl("rand", unsupportedRandomOp<IntArrayRef, TENSOROPTIONS, MEMORYFORMAT>);
+  m.impl("rand.generator", unsupportedRandomOp<IntArrayRef, std::optional<Generator>, TENSOROPTIONS, MEMORYFORMAT>);
+  m.impl("rand.out", unsupportedRandomOp_<IntArrayRef, MEMORYFORMAT, Tensor&>);
+  m.impl("rand.generator_out", unsupportedRandomOp_<IntArrayRef, std::optional<Generator>, MEMORYFORMAT, Tensor&>);
 
-  m.impl("randn", unsupportedRandomOp<IntArrayRef, TENSOROPTIONS>);
-  m.impl("randn.generator", unsupportedRandomOp<IntArrayRef, std::optional<Generator>, TENSOROPTIONS>);
-  m.impl("randn.out", unsupportedRandomOp_<IntArrayRef, Tensor&>);
-  m.impl("randn.generator_out", unsupportedRandomOp_<IntArrayRef, std::optional<Generator>, Tensor&>);
+  m.impl("randn", unsupportedRandomOp<IntArrayRef, TENSOROPTIONS, MEMORYFORMAT>);
+  m.impl("randn.generator", unsupportedRandomOp<IntArrayRef, std::optional<Generator>, TENSOROPTIONS, MEMORYFORMAT>);
+  m.impl("randn.out", unsupportedRandomOp_<IntArrayRef, MEMORYFORMAT, Tensor&>);
+  m.impl("randn.generator_out", unsupportedRandomOp_<IntArrayRef, std::optional<Generator>, MEMORYFORMAT, Tensor&>);
 
   m.impl("randperm", unsupportedRandomOp<int64_t, TENSOROPTIONS>);
   m.impl("randperm.generator", unsupportedRandomOp<int64_t, std::optional<Generator>, TENSOROPTIONS>);
   m.impl("randperm.out", unsupportedRandomOp_<int64_t, Tensor&>);
   m.impl("randperm.generator_out", unsupportedRandomOp_<int64_t, std::optional<Generator>, Tensor&>);
 
-  m.impl("randint", unsupportedRandomOp<int64_t, IntArrayRef, TENSOROPTIONS>);
-  m.impl("randint.generator", unsupportedRandomOp<int64_t, IntArrayRef, std::optional<Generator>, TENSOROPTIONS>);
-  m.impl("randint.low", unsupportedRandomOp<int64_t, int64_t, IntArrayRef, TENSOROPTIONS>);
-  m.impl("randint.low_generator", unsupportedRandomOp<int64_t, int64_t, IntArrayRef, std::optional<Generator>, TENSOROPTIONS>);
-  m.impl("randint.out", unsupportedRandomOp_<int64_t, IntArrayRef, Tensor&>);
-  m.impl("randint.generator_out", unsupportedRandomOp_<int64_t, IntArrayRef, std::optional<Generator>, Tensor&>);
-  m.impl("randint.low_out", unsupportedRandomOp_<int64_t, int64_t, IntArrayRef, Tensor&>);
-  m.impl("randint.low_generator_out", unsupportedRandomOp_<int64_t, int64_t, IntArrayRef, std::optional<Generator>, Tensor&>);
+  m.impl("randint", unsupportedRandomOp<int64_t, IntArrayRef, TENSOROPTIONS, MEMORYFORMAT>);
+  m.impl("randint.generator", unsupportedRandomOp<int64_t, IntArrayRef, std::optional<Generator>, TENSOROPTIONS, MEMORYFORMAT>);
+  m.impl("randint.low", unsupportedRandomOp<int64_t, int64_t, IntArrayRef, TENSOROPTIONS, MEMORYFORMAT>);
+  m.impl("randint.low_generator", unsupportedRandomOp<int64_t, int64_t, IntArrayRef, std::optional<Generator>, TENSOROPTIONS, MEMORYFORMAT>);
+  m.impl("randint.out", unsupportedRandomOp_<int64_t, IntArrayRef, MEMORYFORMAT, Tensor&>);
+  m.impl("randint.generator_out", unsupportedRandomOp_<int64_t, IntArrayRef, std::optional<Generator>, MEMORYFORMAT, Tensor&>);
+  m.impl("randint.low_out", unsupportedRandomOp_<int64_t, int64_t, IntArrayRef, MEMORYFORMAT, Tensor&>);
+  m.impl("randint.low_generator_out", unsupportedRandomOp_<int64_t, int64_t, IntArrayRef, std::optional<Generator>, MEMORYFORMAT, Tensor&>);
 
   m.impl("uniform_", unsupportedRandomOp_<Tensor&, double, double, std::optional<Generator>>);
 
 #undef TENSOROPTIONS
+#undef MEMORYFORMAT
 }
 
 
