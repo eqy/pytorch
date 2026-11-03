@@ -1,0 +1,158 @@
+cuDNN small-hidden LSTM experiment handoff
+========================================
+
+Issue: https://github.com/pytorch/pytorch/issues/203213
+Branch: cudnn-lstm-small-hidden-gb10
+Base checkout: 78def3cb2f7
+Prepared with an AI assistant; experimental candidate for human review.
+
+Start here
+----------
+The candidate changes use_rnn_persist_small_h in
+aten/src/ATen/native/cudnn/RNN.cpp. On sm121 it bypasses SMALL_H for float32
+LSTM forward when hidden >128 and batch >=128. The existing upper bound of
+192, backward routing, other dtypes and other devices retain their behavior.
+The batch threshold is provisional. This is not a validated upstream patch.
+This handoff intentionally keeps the fix, experiment driver and context together;
+trim experiment-only material as appropriate when preparing an upstream PR.
+
+The experiments below validated explicit algorithm selection using an installed
+runtime. The modified C++ heuristic has NOT been built or exercised yet.
+No commits, GitHub comments, PRs or label changes were made by the assistant.
+
+Build and run
+-------------
+Run tests outside the sandbox and avoid concurrent GPU workloads. Build only via
+the editable install, from the repository root, with MAX_JOBS left unset:
+
+  TORCH_CUDA_ARCH_LIST=12.0 pip install -e . -v --no-build-isolation
+
+The original environment reported 119 GiB visible system RAM. Recheck memory
+before a rebuild. No additional saved incremental-build settings were available.
+
+Commands below assume REPO is this checkout's absolute path. Before building,
+run from /tmp so Python imports the installed runtime instead of the unbuilt
+checkout. After building, confirm the printed torch_path points into this checkout.
+For another GPU architecture, adjust TORCH_CUDA_ARCH_LIST to that device.
+
+  REPO=/opt/pytorch/pytorch
+  cd /tmp
+  export PYTHONPATH="$REPO/benchmarks"
+  python -m fastrnns.cudnn_small_hidden --bench
+  python -m fastrnns.cudnn_small_hidden --bench --reverse
+  python -m fastrnns.cudnn_small_hidden --bench --backend cudnn
+  python -m fastrnns.cudnn_small_hidden --bench --backend aten
+  TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=0 python -m fastrnns.cudnn_small_hidden -v
+
+Use module invocation: running the file directly places fastrnns/profile.py ahead
+of the standard-library profile module and breaks imports through cProfile.
+
+Driver options: --batch, --seq, --inputs, --layers, --hidden (a list), --dtype
+(float32/float16/bfloat16), --steps, --repeats, --reverse and --forward-only.
+Defaults: batch1024, seq56, inputs14, one layer. JSON output includes runtime,
+device, capability, import path, configuration and per-case results. Save stdout
+for before/after comparisons; rerun with the same configuration and precision.
+
+Direct mode forces cuDNN forward algorithm 3 (PERSIST_STATIC_SMALL_H) or
+0 (STANDARD), with identical weights and inputs within a comparison. Backward
+uses the installed PyTorch heuristic; it is NOT explicitly forced. For hidden
+129-192 and input14 it already chooses STANDARD. Direct timings exclude Adam,
+autograd scheduling, descriptor construction and initial buffer allocation.
+Native cudnn/aten modes call nn.LSTM; train_step_ms includes Adam and a squared
+mean loss on the final timestep. Inputs are sequence-major. In training mode,
+forward_ms uses no_grad with model.train(); inference uses model.eval().
+Compare each mode with itself rather than treating direct times as native steps.
+Tests compare STANDARD outputs/states/input and parameter gradients against ATen.
+Unsupported direct algorithm/shape combinations are reported as JSON errors;
+in particular SMALL_H does not support hidden >192 for the measured LSTM setup.
+Other runtime failures propagate. Direct mode requires the cuDNN 9 shared library.
+
+Established results, November 2026
+---------------------------------
+GPU: NVIDIA GB10, sm121, 48 SMs; driver 580.142.
+Runtime: PyTorch 2.16.0a0+0291f960b6, CUDA 13.5, cuDNN 9.28.0.
+FP32, input 14, sequence 56, batch 1024, one unidirectional layer, no dropout.
+Times are milliseconds, median of three groups of ten calls after three warmups.
+
+  hidden   SMALL_H fwd   STANDARD fwd   SMALL_H fwd+bwd   STANDARD fwd+bwd
+    136       60.554         2.509            66.483              6.895
+    160       82.834         2.938            89.887              7.795
+    192      142.898         3.516           152.411              8.950
+
+Inference h192: 141.894 -> 2.518 ms. Two layers/no dropout/h192:
+forward 286.617 -> 8.736 ms, forward+backward 323.805 -> 20.572 ms.
+Native batch_first Adam steps reproduced the cliff: h128 9.639 ms,
+h129 62.299, h160 86.578, h192 149.146, h193 13.886.
+Profiler isolated the excess time in RNN_blockPersist_fp_LSTM; the internal
+kernel bottleneck remains unknown. STANDARD launched native sm121 GEMMs.
+
+Why not disable SMALL_H globally?
+  * At batch1/h160, forward+backward regresses 0.660 -> 0.791 ms.
+  * At batch8/h160, forward+backward regresses 0.839 -> 0.920 ms.
+  * At batch128/h160, forward improves 8.758 -> 0.513 ms.
+  * At batch256/h192, forward improves 34.411 -> 0.985 ms.
+  * FP16 batch1024/h160 forward regresses 1.316 -> 1.600 ms.
+  * FP16 h192 has a separate cliff: 9.802 -> 1.805 ms.
+  * BF16 h128/160/192 shows no comparable cliff.
+
+Prior correctness: 20 passing device-generic TestCase tests, hidden sizes
+128/136/160/192/200, batches 32/1024, layers 1/2, sequence 56, FP32, no dropout.
+TF32 was disabled for numerical comparisons; performance used environment
+defaults (including TORCH_ALLOW_TF32_CUBLAS_OVERRIDE=1).
+
+Handoff validation: the tracked driver passed all 28 numerical tests, adding
+129/193 boundary cases. All three backends passed a CLI smoke run with
+--batch 128 --seq 8 --inputs 64 --hidden 128 129 160 192 193
+--steps 1 --repeats 1 --reverse. Direct SMALL_H/h193 correctly reported
+NOT_SUPPORTED; other cases completed. These short runs validate the driver,
+not a new performance threshold. Tests ran sequentially outside the sandbox
+against the installed runtime, not the unbuilt C++ change.
+
+The following formatting command completed successfully (setup initially timed
+out; retry completed). Only the three intended files should be staged:
+  spin fixlint -- aten/src/ATen/native/cudnn/RNN.cpp benchmarks/fastrnns/cudnn_small_hidden.py benchmarks/fastrnns/cudnn_small_hidden_notes.txt
+
+TODO experiments before proposing an upstream PR
+----------------------------------------------
+1. Build the actual patch, run native before/after comparisons and inspect cuDNN
+   logging/profiles to confirm the changed dispatch. A fast direct STANDARD call
+   alone does not verify the patched binary. Use the printed import path.
+2. Map the batch/sequence crossover at hidden129/160/192: batches
+   1/8/32/64/96/128/256/1024 and sequences1/8/56/256/1024. Start with one-axis
+   sweeps, then investigate crossover points. Validate or revise batch>=128.
+3. At representative crossover points vary inputs14/64/128/512, including odd
+   and unaligned sizes. Input14/seq56 were fixed in the original measurements.
+4. Check numerical boundaries128/129/192/193 and batches127/128/129 on the actual
+   patched nn.LSTM path. Add a focused regression test using TestCase, assertEqual,
+   parametrize and instantiate_device_type_tests when the final scope is known.
+5. Exercise bidirectional LSTMs, two layers with dropout0.3, nonzero initial
+   hidden/cell states, batch_first and strided inputs. The direct driver currently
+   covers unidirectional/no-dropout/zero-initial-state cases only.
+6. Exercise packed inputs and projected LSTMs to check their existing bypasses.
+   Verify outputs and gradients with TF32 enabled and disabled; compare against
+   the existing cuDNN path as well as ATen with appropriate precision tolerances.
+7. Recheck FP16/BF16, small hidden sizes and batches outside the guard. Run the
+   existing targeted RNN correctness suite after the editable build.
+8. On other architectures, compare explicit algorithms as well as native
+   before/after. The candidate deliberately targets only sm121; broaden it only
+   with evidence. Record GPU, compute capability, driver and cuDNN version.
+9. Repeat with reversed algorithm order and idle GPU to check thermal/clock bias.
+   Check more cuDNN versions if available. Avoid timing assertions in unit tests.
+10. Review all code and the exact PR description before submission, disclose AI
+    assistance under Agent details, and follow AI_POLICY.md. No automatic posting.
+
+Historical rationale
+--------------------
+PR #62143 introduced SMALL_H in January 2022 (commit 965b9f483ef), reporting up to
+10x speedups. The current LSTM192-forward/128-backward thresholds date to it.
+It was reverted for unsupported cases, then restored by PR #73211 in March 2022
+(commit 943085feaf5) with packed-input and double-precision exclusions.
+
+The reland discussion describes the thresholds as supported-size limits:
+https://github.com/pytorch/pytorch/pull/73211#issuecomment-1048156519
+No documented derivation of a universal performance crossover was found.
+Original benchmark: sequences1000-6000, batches1-64, input/hidden multiples of8.
+It already included forward regressions, e.g. FP32/h168 29.9 -> 156.9 ms.
+https://github.com/pytorch/pytorch/pull/62143
+https://github.com/xwang233/code-snippet/blob/master/cudnn-rnn-bench-62143/forward/b.py
+https://github.com/xwang233/code-snippet/blob/master/cudnn-rnn-bench-62143/forward/readme.txt

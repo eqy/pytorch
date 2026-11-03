@@ -1174,6 +1174,14 @@ inline bool use_rnn_persist_small_h(
     return false;
 
   if (forward) {
+    // GB10's float32 LSTM small-h kernel is slow for large batches (#203213).
+    // TODO: Validate the batch cutoff across sequence/input sizes and devices;
+    // see benchmarks/fastrnns/cudnn_small_hidden_notes.txt before upstreaming.
+    if (prop->major == 12 && prop->minor == 1 && rnn.mode == CUDNN_LSTM &&
+        rnn.input_datatype == CUDNN_DATA_FLOAT && rnn.hidden_size > 128 &&
+        tensors.mini_batch >= 128) {
+      return false;
+    }
     if (rnn.mode == CUDNN_RNN_RELU || rnn.mode == CUDNN_RNN_TANH) {
       return rnn.hidden_size <= 384;
     }
